@@ -98,11 +98,11 @@ if __name__ == '__main__':
         QRA = QRA * RADIANS_2_DEGREE
         QRD = QRD * RADIANS_2_DEGREE
         t_normal = (QRAt - QRAt[0])
-        UDPA_Q = UDPA[:, 3:9]
-        UDPA_A = UDPA[:, 9:15]
-        UDPA_V = UDPA[:, 15:21]
-        UDPA_L = UDPA[:,0:2]
-        UDPD_Q = UDPD[:, 2:]
+        UDPA_Q = UDPA[:, 3:9]       # UDP actual position
+        UDPA_A = UDPA[:, 15:21]      # UDP actual current
+        UDPA_V = UDPA[:, 9:15]     # UDP actual velocity
+        UDPA_L = UDPA[:,0:2]        # UDP queue length
+        UDPD_Q = UDPD[:, 2:]        # UDP demanded position
 
         for i in range(QRA.shape[1]):
             fig = plt.figure()
