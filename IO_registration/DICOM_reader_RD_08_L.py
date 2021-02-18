@@ -15,6 +15,10 @@ from functools import reduce
 # reading in dicom files
 import pydicom
 
+# import open3d
+from open3d import *
+import open3d
+
 
 def load_scan_backup(path):
     slices = [pydicom.dcmread(path + '/' + s) for s in
@@ -108,7 +112,7 @@ def trim_slice(dicom_scan, x, y, z):
     for i in range(z[0], z[1]):
         s = dicom_scan[i]
         HU = s.pixel_array[x[0]: x[1], y[0]:y[1]] * slice_properties[-2] + slice_properties[-1]
-        HU = HU * slice_properties[-2] + slice_properties[-1]
+        #HU = HU * slice_properties[-2] + slice_properties[-1]
         slice_bone_surface_idx = extract_bone_surface(HU, THRESHOLD, THRESHOLD + THO_DELTA)
         trim.append(HU)
         surface_idx.append(slice_bone_surface_idx)
@@ -145,6 +149,29 @@ def plot_3D_point_cloud(surface_idx):
                 ax.plot([xb], [yb], [zb], 'w')
 
 
+def open3d_plot(surface_idx):
+    points = np.zeros(3)
+    for i in range(len(surface_idx)):
+        if surface_idx[i][0].size > 0:
+            #print('surface_idx is', surface_idx[i])
+            x_data = surface_idx[i][1] * slice_properties[1][0]
+            y_data = (surface_idx[i][0]) * slice_properties[1][0]
+            z = i * np.ones(surface_idx[i][1].shape)
+            # flip z to re-position head in 3d plot. (CT scans from top to bottom. 3D plotting goes from bot to top)
+            z_data = (slice_properties[2] - z) * slice_properties[0]
+            for m in range(x_data.shape[0]):
+                pcd_tem = np.array([x_data[m], y_data[m], z_data[m]])
+                points = np.vstack((points, pcd_tem))
+                del pcd_tem
+    points = points[1:,:]
+    print('shape of points is', np.shape(points))
+
+    pcd = open3d.PointCloud()
+    pcd.points = open3d.Vector3dVector(points)
+    visualization.draw_geometries([pcd])
+    return points
+
+
 def plot_2D_slice(dicom_scan):
     fig = plt.figure()
     HU = dicom_scan.pixel_array * slice_properties[-2] + slice_properties[-1]
@@ -175,34 +202,45 @@ z_boundary = [0, slice_properties[2]]
 z_boundary = [160,175]
 
 # left molar boundary (RD_08_L)
-x_molar = [540, 600]
-y_molar = [264, 317]
-z_molar = [160,175]
+x_molar = [535, 605]
+#x_molar = x_boundary
+y_molar = [260, 325]
+#y_molar = y_boundary
+z_molar = [130,175]
 
 
 # left premolar boundary (RD_08_L)
-x_premolar = [540, 600]
-y_premolar = [264, 317]
-z_premolar = [160,175]
+#x_premolar = [450, 487]
+#y_premolar = [300, 338]
+#z_premolar = [160,175]
+x_premolar = [450, 605]
+y_premolar = [260, 338]
+z_premolar = [130, 175]
+
 
 # typodont dicom thresholds
-THRESHOLD = 10
-THO_DELTA = 50
+THRESHOLD = -200     # original -350 - 5
+THO_DELTA = 100
 
 # dicom slice plot
-plot_2D_slice(scan[z_premolar[0] + 5])
-plt.show()
-exit()
+plot_2D_slice(scan[z_premolar[0] + 10])
 
 # trim molar and plot
 HU_trim_molar, bone_surface_idx_molar = trim_slice(scan, x_molar, y_molar, z_molar)
-plot_3D_point_cloud(bone_surface_idx_molar)
+dicom_point_cloud = open3d_plot(bone_surface_idx_molar)
+dicom_pc_file = 'G:\My Drive\Project\IntraOral Scanner Registration\dicom_points.csv'
+Yomiwrite.write_csv_matrix(dicom_pc_file, dicom_point_cloud)
+
 del HU_trim_molar
 
 # trim premolar and plot
 HU_trim_premolar, bone_surface_idx_premolar = trim_slice(scan, x_premolar, y_premolar, z_premolar)
-plot_3D_point_cloud(bone_surface_idx_premolar)
+dicom_point_cloud_premolar = open3d_plot(bone_surface_idx_premolar)
+dicom_pc_2teeth_file = 'G:\My Drive\Project\IntraOral Scanner Registration\dicom_points_2teeth.csv'
+dicom_point_cloud_2teeth = np.vstack((dicom_point_cloud, dicom_point_cloud_premolar))
+Yomiwrite.write_csv_matrix(dicom_pc_2teeth_file, dicom_point_cloud_2teeth)
+#plot_3D_point_cloud(bone_surface_idx_premolar)
+del HU_trim_premolar
 
 # dicom slice plot
-plot_2D_slice(scan[z_molar[0]])
-plt.show()
+# plt.show()
