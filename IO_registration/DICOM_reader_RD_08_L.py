@@ -57,7 +57,6 @@ def load_scan(path):
     print('Thickness is ' + np.str(slice_thickness) + ' and pixel spacing is ' + np.str(slice_pixel_spacing) + ' mm')
     return scan, [slice_thickness, slice_pixel_spacing, n, slice_rows, slice_columns, slope, intercept]
 
-
 def load_scan_human(path):
     HU = []
     scan = []
@@ -103,6 +102,7 @@ def extract_bone_surface(hu_array, minimum_hu = 1950, maximum_hu = 2050):
     HU_min = hu_array > minimum_hu
     bone_surface = HU_max & HU_min
     idx = np.where(bone_surface == True)
+    idx = np.asarray(idx)
     return idx
 
 
@@ -112,8 +112,10 @@ def trim_slice(dicom_scan, x, y, z):
     for i in range(z[0], z[1]):
         s = dicom_scan[i]
         HU = s.pixel_array[x[0]: x[1], y[0]:y[1]] * slice_properties[-2] + slice_properties[-1]
-        #HU = HU * slice_properties[-2] + slice_properties[-1]
         slice_bone_surface_idx = extract_bone_surface(HU, THRESHOLD, THRESHOLD + THO_DELTA)
+        if len(slice_bone_surface_idx[0]) > 0:
+            slice_bone_surface_idx[0] = slice_bone_surface_idx[0] + x[0]
+            slice_bone_surface_idx[1] = slice_bone_surface_idx[1] + y[0]
         trim.append(HU)
         surface_idx.append(slice_bone_surface_idx)
         del HU, slice_bone_surface_idx
@@ -201,7 +203,7 @@ z_boundary = [0, slice_properties[2]]
 #y_boundary = [264, 317]     # x in imshow figure
 z_boundary = [160,175]
 
-# left molar boundary (RD_08_L)
+# right molar boundary (RD_08_L)
 x_molar = [535, 605]
 #x_molar = x_boundary
 y_molar = [260, 325]
@@ -209,7 +211,7 @@ y_molar = [260, 325]
 z_molar = [130,175]
 
 
-# left premolar boundary (RD_08_L)
+# right premolar boundary (RD_08_L)
 #x_premolar = [450, 487]
 #y_premolar = [300, 338]
 #z_premolar = [160,175]
@@ -218,15 +220,26 @@ y_premolar = [260, 338]
 z_premolar = [130, 175]
 
 
+# right 2nd premolar boundary (RD_08_L)
+#x_premolar_2 = [422, 450]
+#y_premolar_2 = [321, 360]
+#z_premolar_2 = [130, 175]
+
+x_premolar_2 = [418, 605]
+y_premolar_2 = [260, 360]
+z_premolar_2 = [130, 175]
+
+
 # typodont dicom thresholds
-THRESHOLD = -200     # original -350 - 5
-THO_DELTA = 100
+THRESHOLD = -600     # original -350 - 5    # working case -600 200
+THO_DELTA = 200
 
 # dicom slice plot
 plot_2D_slice(scan[z_premolar[0] + 10])
 
 # trim molar and plot
 HU_trim_molar, bone_surface_idx_molar = trim_slice(scan, x_molar, y_molar, z_molar)
+print('bone_surface_idx_molar is', bone_surface_idx_molar)
 dicom_point_cloud = open3d_plot(bone_surface_idx_molar)
 dicom_pc_file = 'G:\My Drive\Project\IntraOral Scanner Registration\dicom_points.csv'
 Yomiwrite.write_csv_matrix(dicom_pc_file, dicom_point_cloud)
@@ -241,6 +254,16 @@ dicom_point_cloud_2teeth = np.vstack((dicom_point_cloud, dicom_point_cloud_premo
 Yomiwrite.write_csv_matrix(dicom_pc_2teeth_file, dicom_point_cloud_2teeth)
 #plot_3D_point_cloud(bone_surface_idx_premolar)
 del HU_trim_premolar
+
+
+# trim 2nd premolar and plot
+HU_trim_premolar_2, bone_surface_idx_premolar_2 = trim_slice(scan, x_premolar_2, y_premolar_2, z_premolar_2)
+dicom_point_cloud_premolar_2 = open3d_plot(bone_surface_idx_premolar_2)
+dicom_pc_3teeth_file = 'G:\My Drive\Project\IntraOral Scanner Registration\dicom_points_3teeth.csv'
+dicom_point_cloud_3teeth = np.vstack((dicom_point_cloud_2teeth, dicom_point_cloud_premolar_2))
+Yomiwrite.write_csv_matrix(dicom_pc_3teeth_file, dicom_point_cloud_3teeth)
+#plot_3D_point_cloud(bone_surface_idx_premolar)
+del HU_trim_premolar_2
 
 # dicom slice plot
 # plt.show()

@@ -67,13 +67,20 @@ premolar_x = [-9, -2.5]
 premolar_y = [44, 50]
 premolar_z = [-33, -21]
 
+# right 2nd premolar boundary in stl
+premolar_x_2 = [-14, -8]
+premolar_y_2 = [44, 50]
+premolar_z_2 = [-25, -18]
+
+
+
 # extract molar based on boundary
 points = extract_vertex_boundary(your_mesh.points, x_boundary, y_boundary, z_boundary)
 print('shape of points is', np.shape(points))
 
 stl_point_cloud = points
 stl_pc_file = 'G:\My Drive\Project\IntraOral Scanner Registration\stl_points.csv'
-Yomiwrite.write_csv_matrix(stl_pc_file, stl_point_cloud)
+#Yomiwrite.write_csv_matrix(stl_pc_file, stl_point_cloud)
 
 pcd = open3d.PointCloud()
 pcd.points = open3d.Vector3dVector(points)
@@ -84,10 +91,19 @@ visualization.draw_geometries([pcd])
 pre_molar_points = extract_vertex_boundary(your_mesh.points, premolar_x, premolar_y, premolar_z)
 stl_point_cloud_2teeth = np.vstack((points, pre_molar_points))
 stl_pc_file_2teeth = 'G:\My Drive\Project\IntraOral Scanner Registration\stl_points_2teeth.csv'
-Yomiwrite.write_csv_matrix(stl_pc_file_2teeth, stl_point_cloud_2teeth)
+#Yomiwrite.write_csv_matrix(stl_pc_file_2teeth, stl_point_cloud_2teeth)
 pcd_pre = open3d.PointCloud()
 pcd_pre.points = open3d.Vector3dVector(pre_molar_points)
 visualization.draw_geometries([pcd_pre])
+
+# extract 2nd premolar based on boundary
+pre_molar_points_2 = extract_vertex_boundary(your_mesh.points, premolar_x_2, premolar_y_2, premolar_z_2)
+stl_point_cloud_3teeth = np.vstack((stl_point_cloud_2teeth, pre_molar_points_2))
+stl_pc_file_3teeth = 'G:\My Drive\Project\IntraOral Scanner Registration\stl_points_3teeth.csv'
+Yomiwrite.write_csv_matrix(stl_pc_file_3teeth, stl_point_cloud_3teeth)
+pcd_pre_2 = open3d.PointCloud()
+pcd_pre_2.points = open3d.Vector3dVector(pre_molar_points_2)
+visualization.draw_geometries([pcd_pre_2])
 
 
 
