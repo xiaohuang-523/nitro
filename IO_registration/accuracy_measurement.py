@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d as plt3d
 from mpl_toolkits.mplot3d import Axes3D
 import Writers as Yomiwrite
+import os
 
 
 # Function to process fixture raw measurements.
@@ -95,7 +96,7 @@ def check_cylinder_base_full(raw, origin_cylinder_number, Xaxis_cylinder_number,
         axis_tem = cylinder[3:6]
         cylinder_axis_tem = np.matmul(np.linalg.inv(rot), axis_tem)
         cylinder_axis.append(flip_vector(cylinder_axis_tem))
-    return np.asarray(cylinder_base[0:-1]), np.asarray(cylinder_axis[0:-1])
+    return np.asarray(cylinder_base), np.asarray(cylinder_axis)
 
 
 # Function to process fixture raw measurements.
@@ -204,7 +205,7 @@ def estimate_full_relative(pos, angle, faro):
 #           position error in plane.
 #           height error (w.r.t 1st cylinder)
 #           angular error of axis
-def estimate_full_absolute(pos, angle, faro, faro_axis):
+def estimate_full_absolute(pos, angle, faro, faro_axis, counter = 0):
     pos_error = np.sqrt(np.sum((pos[0:7,0:2] - faro[0:7,0:2])**2, axis=1))
     height_error = pos[:,2] - pos[0,2]
     angular_error = check_cylinder_orientation_full_absolute(angle, faro_axis)
@@ -225,6 +226,7 @@ def estimate_full_absolute(pos, angle, faro, faro_axis):
     plt.xlim(-40,5)
     plt.ylim(-5, 40)
     plt.title('IOS full arch accuracy estimation (absolute angular)')
+    plt.savefig(base_path+'\\results\\' + 'IOS full arch absolute accuracy' + np.str(counter) + '.png')
     return pos_error, height_error, angular_error
 
 
@@ -247,60 +249,47 @@ def flip_vector(vector, axis = 'z'):
     return tem
 
 if __name__ == '__main__':
-    #file_path = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\Results\\Accuracy FXT tests\\" \
-    #            "cylinder_measurements.txt"
-    base_path = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\Results\\Accuracy FXT tests\\"
-    file_path = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\Results\\Accuracy FXT tests\\" \
-                "cylinder_plane_measurements.txt"
+    base_path = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\Results\\Accuracy FXT tests\\Accuracy assessment"
     faro_file_path = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\Results\\Accuracy FXT tests\\" \
-                "full_arch_faro.txt"
+                "Accuracy assessment\\faro_measurements\\full_arch_faro.txt"
 
+    correction_path = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\Results\\Accuracy FXT tests\\Accuracy assessment\\correction_measurements\\full_arch_cylinder_measurement_5.txt"
+    accuracy_raw = Yomiread.read_csv(correction_path, 6, 20)
+    faro_raw = Yomiread.read_csv(faro_file_path, 6, 20)
 
-    accuracy_raw = Yomiread.read_csv(file_path,6,20)
-    faro_raw = Yomiread.read_csv(faro_file_path,6,20)
-    #trial1_raw = accuracy_raw[0:5,:]
-    #trial2_raw = accuracy_raw[5:10,:]
-    #print('raw data is', accuracy_raw)
-    #print('trial2_raw is', trial2_raw)
-
-    #raw = trial1_raw
-    #cylinder_base = check_cylinder_base(raw, 5, 3)
-    #cylinder_angular_error = check_cylinder_orientation(raw)
-    #cylinder_angular_error2 = check_cylinder_orientation(trial2_raw)
-
-    #print('cylinder_base is', cylinder_base)
-    #print('cylinder_orientation is', cylinder_angular_error)
-    #print('cylinder_orientation is', cylinder_angular_error2)
-
+    i = 5
     cylinder_base, cylinder_axis = check_cylinder_base_full(accuracy_raw, 1, 7, reference='cylinder')
     faro_base, faro_axis = check_cylinder_base_full(faro_raw, 1, 7, axis='y', reference='cylinder')
 
     pos_error, height_error, angular_error = estimate_full_relative(cylinder_base, cylinder_axis, faro_base)
-    pos_error2, height_error2, angular_error2 = estimate_full_absolute(cylinder_base, cylinder_axis, faro_base, faro_axis)
-    Yomiwrite.write_csv_array(base_path+'pos_error.txt', pos_error)
-    Yomiwrite.write_csv_array(base_path + 'height_error.txt', height_error)
-    Yomiwrite.write_csv_array(base_path+'angular_error.txt', angular_error)
+    pos_error2, height_error2, angular_error2 = estimate_full_absolute(cylinder_base, cylinder_axis, faro_base,
+                                                                       faro_axis, i)
+    Yomiwrite.write_csv_array(base_path + '\\results\\' + 'correction_pos_error' + np.str(i) + '.txt', pos_error2)
+    Yomiwrite.write_csv_array(base_path + '\\results\\' + 'correction_height_error' + np.str(i) + '.txt', height_error2)
+    Yomiwrite.write_csv_array(base_path + '\\results\\' + 'correction_angular_error' + np.str(i) + '.txt', angular_error2)
+    plt.show()
+
+    exit()
+    # the code below is working for accuracy, don't delete
+
+    i = 0
+    for item in os.listdir(base_path + '\\stl_measurements'):
+        i += 1
+        file_path = base_path + '\\stl_measurements' + '\\' + item
+        print('file path is', file_path)
+
+        accuracy_raw = Yomiread.read_csv(file_path,6,20)
+        faro_raw = Yomiread.read_csv(faro_file_path,6,20)
+
+        cylinder_base, cylinder_axis = check_cylinder_base_full(accuracy_raw, 1, 7, reference='cylinder')
+        faro_base, faro_axis = check_cylinder_base_full(faro_raw, 1, 7, axis='y', reference='cylinder')
+
+        pos_error, height_error, angular_error = estimate_full_relative(cylinder_base, cylinder_axis, faro_base)
+        pos_error2, height_error2, angular_error2 = estimate_full_absolute(cylinder_base, cylinder_axis, faro_base, faro_axis, i)
+        Yomiwrite.write_csv_array(base_path+ '\\results\\' + 'pos_error' + np.str(i) + '.txt', pos_error2)
+        Yomiwrite.write_csv_array(base_path + '\\results\\' + 'height_error' + np.str(i) + '.txt', height_error2)
+        Yomiwrite.write_csv_array(base_path+'\\results\\' + 'angular_error' + np.str(i) + '.txt', angular_error2)
 
 
-    # pos_error = np.sqrt(np.sum((cylinder_base[0:7,0:2] - faro_base[0:7,0:2])**2, axis=1))
-    # height_error = cylinder_base[:,2] - cylinder_base[0,2]
-    # angular_error = check_cylinder_orientation_full(cylinder_axis)
-    # print('position error is', pos_error)
-    # print('height error is', height_error)
-    # print('angular error is', angular_error)
-    #
-    # fig = plt.figure()
-    # plt.scatter(faro_base[:, 0], faro_base[:, 1], color = 'black', label = 'faro')
-    # plt.scatter(cylinder_base[:, 0], cylinder_base[:, 1], color='red', label = 'IOS')
-    # for j in range(7):
-    #     plt.text(faro_base[j,0]-2, faro_base[j,1] + 0.8, np.str(round(angular_error[j],2)) + ' degree', color = 'blue')
-    #     plt.text(faro_base[j, 0] - 2, faro_base[j, 1] + 2.5, np.str(round(pos_error[j], 2)) + ' mm', color='blue')
-    #     plt.arrow(cylinder_base[j, 0], cylinder_base[j, 1], cylinder_axis[j, 0] * 40, cylinder_axis[j, 1] * 40,
-    #               color='purple', width=0.13)
-    # plt.xlabel('x (mm)')
-    # plt.ylabel('y (mm)')
-    # plt.legend()
-    # plt.xlim(-40,5)
-    # plt.ylim(-5, 40)
-    # plt.title('IOS full arch accuracy estimation')
+
     plt.show()

@@ -165,9 +165,10 @@ if __name__ == '__main__':
 
     # read dicom file
     path = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\RD-08-L\\'
+    path_full_arch = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\DICOMs_Typodont\\full_arch_voxel_02\\'
     #path = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\FA-human scan\\'
-    scan, slice_properties = image_reader.load_scan_human(path)
-    img = scan[168].pixel_array # 170 and 165 for RD-08-L   # 290 for human
+    scan, slice_properties = image_reader.load_scan_human(path_full_arch)
+    img = scan[172].pixel_array # 170 and 165 for RD-08-L   # 290 for human  #
 
     # convert to grayscale for image processing
     img_gray = convert_to_grayscale(img)

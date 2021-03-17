@@ -93,6 +93,42 @@ x_full = [-15,6]
 y_full = [16,32]
 z_full = [212,230]
 
+# incisor in stl
+x_incisor = [-13,-6.5]
+y_incisor = [25,33]
+z_incisor = [210.5,230]
+
+# cylinders near right molar in stl
+x_cylinder = [10, 18.2]
+y_cylinder = [-10.5, 7.5]
+z_cylinder = [210.5, 230]
+
+# extract incisor based on boundary
+points_cylinder = extract_vertex_boundary(your_mesh.points, x_cylinder, y_cylinder, z_cylinder)
+print('shape of points is', np.shape(points_cylinder))
+
+stl_point_cloud_cylinder = points_cylinder
+stl_pc_file_cylinder = 'G:\My Drive\Project\IntraOral Scanner Registration\stl_points_cylinder.csv'
+Yomiwrite.write_csv_matrix(stl_pc_file_cylinder, stl_point_cloud_cylinder)
+
+pcd_cylinder = open3d.PointCloud()
+pcd_cylinder.points = open3d.Vector3dVector(points_cylinder)
+#pcd.paint_uniform_color([0, 0.651, 0.929])
+visualization.draw_geometries([pcd_cylinder])
+
+# extract incisor based on boundary
+points_incisor = extract_vertex_boundary(your_mesh.points, x_incisor, y_incisor, z_incisor)
+print('shape of points is', np.shape(points_incisor))
+
+stl_point_cloud_incisor = points_incisor
+stl_pc_file_incisor = 'G:\My Drive\Project\IntraOral Scanner Registration\stl_points_incisor.csv'
+#Yomiwrite.write_csv_matrix(stl_pc_file_incisor, stl_point_cloud_incisor)
+
+pcd_incisor = open3d.PointCloud()
+pcd_incisor.points = open3d.Vector3dVector(points_incisor)
+#pcd.paint_uniform_color([0, 0.651, 0.929])
+visualization.draw_geometries([pcd_incisor])
+
 
 
 # extract molar based on boundary
@@ -185,9 +221,11 @@ print('shape of points is', np.shape(points_full))
 
 stl_point_cloud_full = points_full
 stl_pc_file_full = 'G:\My Drive\Project\IntraOral Scanner Registration\stl_points_full.csv'
-Yomiwrite.write_csv_matrix(stl_pc_file_full, stl_point_cloud_full)
+#Yomiwrite.write_csv_matrix(stl_pc_file_full, stl_point_cloud_full)
 
 pcd_full = open3d.PointCloud()
 pcd_full.points = open3d.Vector3dVector(points_full)
 #pcd.paint_uniform_color([0, 0.651, 0.929])
 visualization.draw_geometries([pcd_full])
+
+
