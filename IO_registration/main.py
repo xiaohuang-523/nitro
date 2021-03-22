@@ -13,6 +13,7 @@ from matplotlib import pyplot as plt
 import prepare_data
 import spinle_interpolation as sp
 import Writers as Yomiwrite
+from stl import mesh
 
 
 def draw_registration_result(source, target, transformation):
@@ -26,17 +27,17 @@ def draw_registration_result(source, target, transformation):
 
 
 def preprocess_point_cloud(pcd, voxel_size):
-    print(":: Downsample with a voxel size %.3f." % voxel_size)
+    #print(":: Downsample with a voxel size %.3f." % voxel_size)
     pcd_down = o3d.geometry.voxel_down_sample(pcd, voxel_size)
 
     radius_normal = voxel_size * 2
-    print(":: Estimate normal with search radius %.3f." % radius_normal)
+    #print(":: Estimate normal with search radius %.3f." % radius_normal)
     o3d.geometry.estimate_normals(
         pcd_down,
         o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
 
     radius_feature = voxel_size * 5
-    print(":: Compute FPFH feature with search radius %.3f." % radius_feature)
+    #print(":: Compute FPFH feature with search radius %.3f." % radius_feature)
     pcd_fpfh = o3d.registration.compute_fpfh_feature(
         pcd_down,
         o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
@@ -44,7 +45,7 @@ def preprocess_point_cloud(pcd, voxel_size):
 
 
 def prepare_dataset(voxel_size, source_points, target_points, trans_init):
-    print(":: Load two point clouds and disturb initial pose.")
+    #print(":: Load two point clouds and disturb initial pose.")
 
     source = o3d.PointCloud()
     source.points = o3d.Vector3dVector(source_points)
@@ -61,9 +62,9 @@ def prepare_dataset(voxel_size, source_points, target_points, trans_init):
 def execute_global_registration(source_down, target_down, source_fpfh,
                                 target_fpfh, voxel_size):
     distance_threshold = voxel_size * 1.5
-    print(":: RANSAC registration on downsampled point clouds.")
-    print("   Since the downsampling voxel size is %.3f," % voxel_size)
-    print("   we use a liberal distance threshold %.3f." % distance_threshold)
+    #print(":: RANSAC registration on downsampled point clouds.")
+    #print("   Since the downsampling voxel size is %.3f," % voxel_size)
+    #print("   we use a liberal distance threshold %.3f." % distance_threshold)
     result = o3d.registration.registration_ransac_based_on_feature_matching(
         source_down, target_down, source_fpfh, target_fpfh, distance_threshold,
         o3d.registration.TransformationEstimationPointToPoint(False), 4, [
@@ -97,7 +98,7 @@ def registration(voxel_size, threshold, source_points, target_points, trans_init
     result_ransac = execute_global_registration(source_down, target_down,
                                                 source_fpfh, target_fpfh,
                                                 voxel_size)
-    print(result_ransac)
+    #print(result_ransac)
     # draw_registration_result(source_down, target_down,
     #                         result_ransac.transformation)
 
@@ -106,45 +107,45 @@ def registration(voxel_size, threshold, source_points, target_points, trans_init
     o3d.estimate_normals(target, search_param=o3d.KDTreeSearchParamHybrid(radius=1, max_nn=30))
     trans_init = result_ransac.transformation
 
-    print("Initial alignment")
+    #print("Initial alignment")
     evaluation = o3d.registration.evaluate_registration(source, target, threshold, trans_init)
-    print(evaluation)
+    #print(evaluation)
 
-    print("Apply point-to-point ICP")
+    #print("Apply point-to-point ICP")
     reg_p2p = o3d.registration.registration_icp(
         source, target, threshold, trans_init,
         o3d.registration.TransformationEstimationPointToPoint())
-    print(reg_p2p)
-    print("Transformation is:")
-    print(reg_p2p.transformation)
-    print("")
+    #print(reg_p2p)
+    #print("Transformation is:")
+    #print(reg_p2p.transformation)
+    #print("")
     # draw_registration_result(source, target, reg_p2p.transformation)
 
     # second ICP
     trans_init2 = reg_p2p.transformation
-    print("Apply 2nd point-to-point ICP")
+    #print("Apply 2nd point-to-point ICP")
     reg_p2p2 = o3d.registration.registration_icp(
         source, target, threshold, trans_init2,
         o3d.registration.TransformationEstimationPointToPoint())
-    print(reg_p2p2)
-    print("Transformation 2 is:")
-    print(reg_p2p2.transformation)
-    print("")
+    #print(reg_p2p2)
+    #print("Transformation 2 is:")
+    #print(reg_p2p2.transformation)
+    #print("")
     # draw_registration_result(source, target, reg_p2p2.transformation)
 
     # third ICP
     trans_init3 = reg_p2p2.transformation
-    print("Apply 3rd point-to-point ICP")
+    #print("Apply 3rd point-to-point ICP")
     reg_p2p3 = o3d.registration.registration_icp(
         source, target, threshold, trans_init3,
         o3d.registration.TransformationEstimationPointToPoint())
-    print('checking rms')
-    print(reg_p2p3.inlier_rmse)
-    print(reg_p2p3)
-    print("Transformation 3 is:")
-    print(reg_p2p3.transformation)
-    print("")
-    draw_registration_result(source, target, reg_p2p3.transformation)
+    #print('checking rms')
+    #print(reg_p2p3.inlier_rmse)
+    #print(reg_p2p3)
+    #print("Transformation 3 is:")
+    #print(reg_p2p3.transformation)
+    #print("")
+    #draw_registration_result(source, target, reg_p2p3.transformation)
     return reg_p2p3
 
 #
@@ -247,93 +248,356 @@ def estimate_transformation_error(transformation, static_img, moving_img):
         err[x] = np.linalg.norm(eepos)
     return err
 
+def get_transformed_data(parameter, trans1, trans2, trans3):
+    print('parameter is', parameter)
+    print('parameter shape is', np.shape(parameter))
+    p1 = transpose_pc(parameter, trans1)
+    p2 = transpose_pc(parameter, trans2)
+    p3 = transpose_pc(parameter, trans3)
+    return p1, p2, p3
+
+def vector_angle(v1, v2):
+    angle = np.arccos(np.matmul(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))) * 180 / np.pi
+    if angle > 180:
+        angle1 = 360 - angle
+    return angle
+
+def get_angluar_error(a0, a1,a2,a3):
+    angle1 = []
+    angle2 = []
+    angle3 = []
+    for i in range(a0.shape[0]):
+        angle1.append(vector_angle(a0[i,:], a1[i,:]))
+        angle2.append(vector_angle(a0[i, :], a2[i, :]))
+        angle3.append(vector_angle(a0[i, :], a3[i, :]))
+    return np.asarray(angle1), np.asarray(angle2), np.asarray(angle3)
+
 if __name__ == "__main__":
     trans_init = np.eye(4)
     # R2  voxel size is 1
     voxel_size_molar = 0.3  # means 5mm for the dataset  (5mm for the backup data)
     threshold_molar = 50  # 15
-    ICP_result = []
-    rms = []
-    for i in range(7):
-        ICP_single_tooth = registration(voxel_size_molar, threshold_molar, prepare_data.stl[i], prepare_data.dicom[i], trans_init)
-        ICP_result.append(ICP_single_tooth)
+    rms_threshold = 0.2
 
-    rms_threshold = 1  # 1mm threshold
-    rms_min = rms_threshold
-    n_best = -1
-    for i in range(6):
-        if ICP_result[i].inlier_rmse < rms_min:
-            rms_min = ICP_result[i].inlier_rmse
-            n_best = i
-        else:
-            rms_min = rms_min
-    print(np.str(n_best + 1) + 'th tooth gives the best initial registration with rmse ' + np.str(rms_min))
+    tooth_number = np.asarray(range(32, 16, -1))
+    ICP_local = []
+    ICP_rms = []
+    for i in range(16):
+        rms_init = 1
+        count = 1
+        voxel_step = 0.02
+        voxel_size_molar = 0.3
+        print('register tooth', 32 - i)
+        print('rms_init is', rms_init)
+        ICP_tem = []
+        ICP_result_tem = []
+        while rms_init > rms_threshold and count < 4:
+            print('iteration ', count)
+            ICP_single = registration(voxel_size_molar, threshold_molar, prepare_data.source_stl_points[i],
+                                  prepare_data.target_dicom_points[i], trans_init)
+            rms_init = ICP_single.inlier_rmse
+            voxel_size_molar = voxel_size_molar - voxel_step * count
+            count += 1
+            print('rms_init is', rms_init)
+            ICP_tem.append(ICP_single)
+            ICP_result_tem.append(ICP_single.inlier_rmse)
+            idx = np.where(ICP_result_tem == np.min(ICP_result_tem))[0][0]
+            print('idx is', idx)
+            ICP_single = ICP_tem[idx]
 
-    if n_best != -1:
-        trans_best = ICP_result[n_best].transformation
-    else:
-        trans_best = trans_init
-        print('initial registration failed')
+        print('final rmse is', ICP_single.inlier_rmse)
+        ICP_local.append(ICP_single)
+        ICP_rms.append(ICP_single.inlier_rmse)
+        #source_pc = o3d.PointCloud()
+        #source_pc.points = o3d.Vector3dVector(prepare_data.source_stl_points[i])
+        #target_pc = o3d.PointCloud()
+        #target_pc.points = o3d.Vector3dVector(prepare_data.target_dicom_points[i])
+        #draw_registration_result(source_pc, target_pc, ICP_single.transformation)
+
+        del ICP_single
+    print('ICP_rms is', ICP_rms)
+    # exit()
+    #
+    # print('perform local registration')
+    # ICP_single = registration(voxel_size_molar, threshold_molar, prepare_data.source_stl_points[0], prepare_data.target_dicom_points[0], trans_init)
+    # print('rms is', ICP_single.inlier_rmse)
+    # exit()
+    #
+    # ICP_result = []
+    # rms = []
+    # for i in range(7):
+    #     ICP_single_tooth = registration(voxel_size_molar, threshold_molar, prepare_data.stl[i], prepare_data.dicom[i], trans_init)
+    #     ICP_result.append(ICP_single_tooth)
+    #
+    # rms_threshold = 1  # 1mm threshold
+    # rms_min = rms_threshold
+    # n_best = -1
+    # for i in range(6):
+    #     if ICP_result[i].inlier_rmse < rms_min:
+    #         rms_min = ICP_result[i].inlier_rmse
+    #         n_best = i
+    #     else:
+    #         rms_min = rms_min
+    # print(np.str(n_best + 1) + 'th tooth gives the best initial registration with rmse ' + np.str(rms_min))
+    #
+    # if n_best != -1:
+    #     trans_best = ICP_result[n_best].transformation
+    # else:
+    #     trans_best = trans_init
+    #     print('initial registration failed')
 
     # source tooth is stl, in yellow
     # target tooth is dicom, in blue
     # deform source points to match target
 
     # Check rigid registration
-    trans_rigid = trans_best
+    trans_rigid = ICP_local[0].transformation
     source_rigid = o3d.PointCloud()
-    source_rigid.points = o3d.Vector3dVector(prepare_data.stl_points)
+    source_rigid.points = o3d.Vector3dVector(prepare_data.source_stl_points_total)
     target_rigid = o3d.PointCloud()
-    target_rigid.points = o3d.Vector3dVector(prepare_data.dicom_points)
+    target_rigid.points = o3d.Vector3dVector(prepare_data.target_dicom_points_total)
     draw_registration_result(source_rigid, target_rigid, trans_rigid)
-
     #plane_target1 = generate_plate(mean_target1, axe_target1)
+    plot_3d_pc(prepare_data.source_stl_points_total)
+    plot_3d_pc(prepare_data.target_dicom_points_total)
 
     # control points are [down, mean, axis[1]]
     source_ctl = []
     target_ctl = []
-    for i in range(7):
-        source_ctl_tem, target_ctl_tem = prepare_data.find_ctl_points(prepare_data.stl[i], prepare_data.dicom[i], ICP_result[i].transformation)
+    #control_list = [0, 1, 2, 8, 9, 13, 14, 15]
+    control_list = range(16)
+    for i in range(16):
+        source_ctl_tem, target_ctl_tem = prepare_data.find_ctl_points(prepare_data.source_stl_points[i], prepare_data.target_dicom_points[i], ICP_local[i].transformation)
         source_ctl.append(source_ctl_tem)
         target_ctl.append(target_ctl_tem)
 
+    #spline_source = prepare_data.combine_pc(source_ctl)
+    #spline_target = prepare_data.combine_pc(target_ctl)
+
     spline_source = np.vstack((source_ctl[0][1], source_ctl[1][1]))
-    spline_source = np.vstack((spline_source, source_ctl[2][1]))
-    spline_source = np.vstack((spline_source, source_ctl[6][1]))
-    spline_source = np.vstack((spline_source, source_ctl[5][1]))
-    spline_source = np.vstack((spline_source, source_ctl[4][1]))
-    spline_source = np.vstack((spline_source, source_ctl[3][1]))
-
     spline_target = np.vstack((target_ctl[0][1], target_ctl[1][1]))
-    spline_target = np.vstack((spline_target, target_ctl[2][1]))
-    spline_target = np.vstack((spline_target, target_ctl[6][1]))
-    spline_target = np.vstack((spline_target, target_ctl[5][1]))
-    spline_target = np.vstack((spline_target, target_ctl[4][1]))
-    spline_target = np.vstack((spline_target, target_ctl[3][1]))
+    for i in range(14):
+        spline_source = np.vstack((spline_source, source_ctl[i+2][1]))
+        spline_target = np.vstack((spline_target, target_ctl[i+2][1]))
+    Yomiwrite.write_csv_matrix("G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_target_points.csv", spline_target)
+    Yomiwrite.write_csv_matrix(
+        "G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_source_points.csv",
+        spline_source)
+    #spline_source = np.vstack((spline_source, source_ctl[6][1]))
+    #spline_source = np.vstack((spline_source, source_ctl[5][1]))
+    #spline_source = np.vstack((spline_source, source_ctl[4][1]))
+    #spline_source = np.vstack((spline_source, source_ctl[3][1]))
 
+    #spline_target = np.vstack((target_ctl[0][1], target_ctl[1][1]))
+    #spline_target = np.vstack((spline_target, target_ctl[2][1]))
+    #spline_target = np.vstack((spline_target, target_ctl[6][1]))
+    #spline_target = np.vstack((spline_target, target_ctl[5][1]))
+    #spline_target = np.vstack((spline_target, target_ctl[4][1]))
+    #spline_target = np.vstack((spline_target, target_ctl[3][1]))
 
-    # control points definition end
-    ctl_source = np.vstack((source_ctl[0][0], source_ctl[1][0]))
-    ctl_source = np.vstack((ctl_source, source_ctl[2][0]))
-    ctl_source = np.vstack((ctl_source, source_ctl[3][0]))
-    ctl_source = np.vstack((ctl_source, source_ctl[4][0]))
-    ctl_source = np.vstack((ctl_source, source_ctl[5][0]))
-    ctl_source = np.vstack((ctl_source, source_ctl[6][0]))
+    # land marks definition
+    j = 0 # use surface as landmarks
+    #j = 1 # use centroid as landmarks
 
-    ctl_target = np.vstack((target_ctl[0][0], target_ctl[1][0]))
-    ctl_target = np.vstack((ctl_target,target_ctl[2][0]))
-    ctl_target = np.vstack((ctl_target, target_ctl[3][0]))
-    ctl_target = np.vstack((ctl_target, target_ctl[4][0]))
-    ctl_target = np.vstack((ctl_target, target_ctl[5][0]))
-    ctl_target = np.vstack((ctl_target, target_ctl[6][0]))
+    for i in range(len(control_list)):
+        if ICP_rms[i] < 0.3:
+        #if ICP_rms[i] > 0:
+            if i == 0:
+                ctl_source = source_ctl[control_list[i]][j]
+                ctl_target = target_ctl[control_list[i]][j]
+            else:
+                ctl_source = np.vstack((ctl_source, source_ctl[control_list[i]][j]))
+                ctl_target = np.vstack((ctl_target, target_ctl[control_list[i]][j]))
+        #if ICP_rms[i+2] < 0.2:
+        #ctl_source = np.vstack((ctl_source, source_ctl[i+2][0]))
+        #ctl_target = np.vstack((ctl_target, target_ctl[i+2][0]))
+
+    print('shape of control target is', np.shape(ctl_target))
+    print('shape of control source is', np.shape(ctl_source))
 
     # Test affine registraion
     # Step 1 - Prepare initial guess (Use trans_best for translation and rotation) (Use eye matrix for shearing)
-    affine_rigid_part = Yomikin.Yomi_parameters(trans_rigid)
+    rigid_init = Yomikin.Yomi_parameters(trans_rigid)
+    trans_rigid_init = trans_rigid
+    #affine_rigid_part = rigid_init
+
+
+    affine_rigid_part = affine_registration.rigid_registration(rigid_init, ctl_target, ctl_source)
+    trans_rigid = Yomikin.Yomi_Base_Matrix(affine_rigid_part)
+
+
     affine_shear_part = np.zeros(6)
-    affine_matrix_init = np.concatenate([affine_rigid_part, affine_shear_part])
+    affine_matrix_init = np.concatenate([rigid_init, affine_shear_part])
     affine_matrix_optimized = affine_registration.affine_registration(affine_matrix_init, ctl_target, ctl_source)
+
+
     trans_final = affine_registration.get_affine_matrix(affine_matrix_optimized)
+    trans_final_file = 'G:\My Drive\Project\IntraOral Scanner Registration\Results\Accuracy FXT tests\Register_stl\\final_transformation_surface_with_XY_shear.csv'
+    Yomiwrite.write_csv_matrix(trans_final_file, trans_final)
+
+
+
+    centroid_reference = []
+    centroid_target = []
+    c_o_r = []
+    c_o_t = []
+    c_t_in_r = []
+    c_r_in_t = []
+    axes_r = []
+    axes_t = []
+    for i in range(16):
+        ct_r, ct_t, ct_o_r, ct_o_t, ct_t_in_r, ct_r_in_t, matrix_r, matrix_t = prepare_data.find_centroid_points_both(prepare_data.source_stl_points[i], prepare_data.target_dicom_points[i], ICP_local[i].transformation)
+        centroid_reference.append(ct_r)
+        centroid_target.append(ct_t)
+        c_o_r.append(ct_o_r)
+        c_o_t.append(ct_o_t)
+        c_t_in_r.append(ct_t_in_r)
+        c_r_in_t.append(ct_r_in_t)
+        axes_r.append(matrix_r)
+        axes_t.append(matrix_t)
+    centroid_reference = np.asarray(centroid_reference)
+    centroid_target = np.asarray(centroid_target)
+    c_o_r = np.asarray(c_o_r)
+    c_o_t = np.asarray(c_o_t)
+    c_t_in_r = np.asarray(c_t_in_r)
+    c_r_in_t = np.asarray(c_r_in_t)
+
+    fig2 = plt.figure(2)
+    ax3d = fig2.add_subplot(111, projection='3d')
+    # ax3d.plot(x_knots, y_knots, z_knots, 'go')
+    ax3d.plot(centroid_reference[:,0], centroid_reference[:,1], centroid_reference[:,2], color ='r', label = 'combined centroid renference')
+    ax3d.plot(c_o_r[:,0], c_o_r[:,1], c_o_r[:,2], color = 'g', label = 'original reference')
+    ax3d.plot(c_t_in_r[:,0], c_t_in_r[:,1], c_t_in_r[:,2], color = 'b', label = 'target in reference')
+    fig2.show()
+
+    fig3 = plt.figure(3)
+    ax3d = fig3.add_subplot(111, projection='3d')
+    # ax3d.plot(x_knots, y_knots, z_knots, 'go')
+    ax3d.plot(centroid_target[:,0], centroid_target[:,1], centroid_target[:,2], color ='r', label = 'combined centroid renference')
+    ax3d.plot(c_o_t[:,0], c_o_t[:,1], c_o_t[:,2], color = 'g', label = 'original reference')
+    ax3d.plot(c_r_in_t[:,0], c_r_in_t[:,1], c_r_in_t[:,2], color = 'b', label = 'target in reference')
+    fig3.show()
+
+    centroid_affine = transpose_pc(centroid_reference, trans_final)
+    centroid_rigid = transpose_pc(centroid_reference, trans_rigid)
+    centroid_init = transpose_pc(centroid_reference, trans_rigid_init)
+
+    # # get transformed principal axes - Start
+    # p_axe1_r = []
+    # p_axe2_r = []
+    # p_axe3_r = []
+    # p_axe1_t = []
+    # p_axe2_t = []
+    # p_axe3_t = []
+    # for i in range(16):
+    #     p_axe1_r.append(axes_r[i][0])
+    #     p_axe2_r.append(axes_r[i][1])
+    #     p_axe3_r.append(axes_r[i][2])
+    #     p_axe1_t.append(axes_t[i][0])
+    #     p_axe2_t.append(axes_t[i][1])
+    #     p_axe3_t.append(axes_t[i][2])
+    #
+    # p_axe1_target = np.asarray(p_axe1_t)
+    # p_axe2_target = np.asarray(p_axe2_t)
+    # p_axe3_target = np.asarray(p_axe3_t)
+    # p_axe1_initial, p_axe1_rigid, p_axe1_affine = get_transformed_data(np.asarray(p_axe1_r), trans_rigid_init, trans_rigid, trans_final)
+    # p_axe2_initial, p_axe2_rigid, p_axe2_affine = get_transformed_data(np.asarray(p_axe2_r), trans_rigid_init, trans_rigid,
+    #                                                                    trans_final)
+    # p_axe3_initial, p_axe3_rigid, p_axe3_affine = get_transformed_data(np.asarray(p_axe3_r), trans_rigid_init, trans_rigid,
+    #                                                                    trans_final)
+    # x1_angle_mismatch_init, x1_angle_mismatch_rigid, x1_angle_mismatch_affine = get_angluar_error(p_axe1_target, p_axe1_initial, p_axe1_rigid, p_axe1_affine)
+    # x2_angle_mismatch_init, x2_angle_mismatch_rigid, x2_angle_mismatch_affine = get_angluar_error(p_axe2_target,
+    #                                                                                               p_axe2_initial,
+    #                                                                                               p_axe2_rigid,
+    #                                                                                               p_axe2_affine)
+    # x3_angle_mismatch_init, x3_angle_mismatch_rigid, x3_angle_mismatch_affine = get_angluar_error(p_axe3_target,
+    #                                                                                               p_axe3_initial,
+    #                                                                                               p_axe3_rigid,
+    #                                                                                               p_axe3_affine)
+    #
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe1_t.csv', p_axe1_target)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe2_t.csv', p_axe2_target)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe3_t.csv', p_axe3_target)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe1_initial.csv', p_axe1_initial)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe1_rigid.csv', p_axe1_rigid)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe1_affine.csv', p_axe1_affine)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe2_initial.csv', p_axe2_initial)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe2_rigid.csv', p_axe2_rigid)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe2_affine.csv', p_axe2_affine)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe3_initial.csv', p_axe3_initial)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe3_rigid.csv', p_axe3_rigid)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\p_axe3_affine.csv', p_axe3_affine)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\x1_angle_mismatch_init.csv', x1_angle_mismatch_init)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\x1_angle_mismatch_rigid.csv',
+    #                           x1_angle_mismatch_rigid)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\x1_angle_mismatch_affine.csv',
+    #                           x1_angle_mismatch_affine)
+    #
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\x2_angle_mismatch_init.csv', x2_angle_mismatch_init)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\x2_angle_mismatch_rigid.csv',
+    #                           x2_angle_mismatch_rigid)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\x2_angle_mismatch_affine.csv',
+    #                           x2_angle_mismatch_affine)
+    #
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\x3_angle_mismatch_init.csv', x3_angle_mismatch_init)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\x3_angle_mismatch_rigid.csv',
+    #                           x3_angle_mismatch_rigid)
+    # Yomiwrite.write_csv_array('G:\\My Drive\\Project\\IntraOral Scanner Registration\\x3_angle_mismatch_affine.csv',
+    #                           x3_angle_mismatch_affine)
+    # # get transformed principal axes - End
+
+    fig4 = plt.figure(4)
+    ax3d = fig4.add_subplot(111, projection='3d')
+    # ax3d.plot(x_knots, y_knots, z_knots, 'go')
+    ax3d.plot(centroid_target[:, 0], centroid_target[:, 1], centroid_target[:, 2], color='r',
+              label='combined centroid target')
+    ax3d.plot(centroid_affine[:,0], centroid_affine[:,1], centroid_affine[:,2], color ='g', label = 'affine registration')
+    ax3d.plot(centroid_rigid[:,0], centroid_rigid[:,1], centroid_rigid[:,2], color = 'b', label = 'rigid registration')
+    fig4.show()
+
+    initial_mismatch = centroid_init - centroid_target
+    rigid_mismatch = centroid_rigid - centroid_target
+    affine_mismatch = centroid_affine - centroid_target
+    rigid_mismatch_error = []
+    for point in rigid_mismatch:
+        rigid_mismatch_error.append(np.linalg.norm(point))
+    affine_mismatch_error = []
+    for point in affine_mismatch:
+        affine_mismatch_error.append(np.linalg.norm(point))
+    init_mismatch_error = []
+    for point in initial_mismatch:
+        init_mismatch_error.append(np.linalg.norm(point))
+
+    fig5 = plt.figure(5)
+    plt.scatter(range(len(rigid_mismatch_error)), rigid_mismatch_error, color = 'r', label='rigid registration error')
+    plt.scatter(range(len(affine_mismatch_error)), affine_mismatch_error, color='g', label='affine registration error')
+    plt.scatter(range(len(init_mismatch_error)), init_mismatch_error, color='b', label='initial registration error')
+
+    mismatch_rigid_file = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\rigid_mismatch.csv'
+    Yomiwrite.write_csv_array(mismatch_rigid_file, rigid_mismatch_error)
+    mismatch_affine_file = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\affine_mismatch.csv'
+    Yomiwrite.write_csv_array(mismatch_affine_file, affine_mismatch_error)
+    mismatch_init_file = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\initial_mismatch.csv'
+    Yomiwrite.write_csv_array(mismatch_init_file, init_mismatch_error)
+
+    # Plotting for checking principal axes - Start
+    # fig6 = plt.figure(6)
+    # plt.scatter(range(len(x1_angle_mismatch_rigid)), x1_angle_mismatch_rigid, color = 'r', label='x1 rigid registration error')
+    # plt.scatter(range(len(x1_angle_mismatch_affine)), x1_angle_mismatch_affine, color='g', label='x1 affine registration error')
+    # plt.scatter(range(len(x1_angle_mismatch_init)), x1_angle_mismatch_init, color='b', label='x1 initial registration error')
+    #
+    # fig7 = plt.figure(7)
+    # plt.scatter(range(len(x2_angle_mismatch_rigid)), x2_angle_mismatch_rigid, color = 'r', label='x2 rigid registration error')
+    # plt.scatter(range(len(x2_angle_mismatch_affine)), x2_angle_mismatch_affine, color='g', label='x2 affine registration error')
+    # plt.scatter(range(len(x2_angle_mismatch_init)), x2_angle_mismatch_init, color='b', label='x2 initial registration error')
+    #
+    # fig8 = plt.figure(8)
+    # plt.scatter(range(len(x3_angle_mismatch_rigid)), x3_angle_mismatch_rigid, color = 'r', label='x3 rigid registration error')
+    # plt.scatter(range(len(x3_angle_mismatch_affine)), x3_angle_mismatch_affine, color='g', label='x3 affine registration error')
+    # plt.scatter(range(len(x3_angle_mismatch_init)), x3_angle_mismatch_init, color='b', label='x3 initial registration error')
+    # Plotting for checking principal axes - End
+    plt.legend()
+    plt.show()
 
     # Check registration of landmarks
     source_ctl_pc = o3d.PointCloud()
@@ -363,23 +627,58 @@ if __name__ == "__main__":
     print('Accuracy measurements solved')
 
     # Check registration of real image
-    stl_points_rigid = transpose_pc(prepare_data.stl_points, trans_rigid)
-    stl_points_affine = transpose_pc(prepare_data.stl_points, trans_final)
+    # stl_points_rigid = transpose_pc(prepare_data.source_stl_points_total, trans_rigid)
+    # stl_points_affine = transpose_pc(prepare_data.source_stl_points_total, trans_final)
+    # print('checking cylinders')
+    # cylinders_affine_p1 = transpose_pc(prepare_data.checking_cylinders_p1, trans_final)
+    # cylinders_affine_p2 = transpose_pc(prepare_data.checking_cylinders_p2, trans_final)
+    # cylinders_affine_p3 = transpose_pc(prepare_data.checking_cylinders_p3, trans_final)
+    # plot_3d_pc(cylinders_affine_p1)
+    #
+    # print('writing stl')
+    # num_triangles = len(cylinders_affine_p1)
+    # data = np.zeros(num_triangles, dtype=mesh.Mesh.dtype)
+    # for i in range(num_triangles):
+    # #     # I did not know how to use numpy-arrays in this case. This was the major roadblock
+    # #     # assign vertex co-ordinates to variables to write into mesh
+    #     data["vectors"][i] = np.array([cylinders_affine_p1[i,:], cylinders_affine_p2[i,:], cylinders_affine_p3[i,:]])
+    # m = mesh.Mesh(data)
+    # m.save('G:\\My Drive\\Project\\IntraOral Scanner Registration\\Results\\Accuracy FXT tests\\Register_stl\\trial5.stl')
+
+    print('checking spline')
     spline_source_rigid = transpose_pc(spline_source, trans_rigid)
     spline_source_affine = transpose_pc(spline_source, trans_final)
     #dicom_points_affine = transpose_pc(dicome_points, trans_final)
     #dicom_points_rigid = transpose_pc(dicome_points, trans_best)
     spline_list = [spline_target, spline_source_rigid, spline_source_affine]
     sp.spline_interpolation_3d_multiple(spline_list)
+    Yomiwrite.write_csv_matrix(
+        "G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_source_points_rigid_transform.csv",
+        spline_source_rigid)
+    print('write spline points done')
+
+    affine_spline_mismatch = spline_source_affine - spline_target
+    rigid_spline_mismatch = spline_source_rigid - spline_target
+    affine_spline_mismatch_error = []
+    rigid_spline_mismatch_error = []
+    for point in affine_spline_mismatch:
+        affine_spline_mismatch_error.append(np.linalg.norm(point))
+    for point in rigid_spline_mismatch:
+        rigid_spline_mismatch_error.append(np.linalg.norm(point))
+
+    fig5 = plt.figure(5)
+    plt.scatter(range(len(rigid_spline_mismatch_error)), rigid_spline_mismatch_error, color = 'r', label='rigid registration error')
+    plt.scatter(range(len(affine_spline_mismatch_error)), affine_spline_mismatch_error, color='g', label='affine registration error')
+
     plt.legend()
     plt.show()
 
 
     source_stl = o3d.PointCloud()
-    source_stl.points = o3d.Vector3dVector(prepare_data.stl_points)
+    source_stl.points = o3d.Vector3dVector(prepare_data.source_stl_points_total)
     # source_dicom.points = o3d.Vector3dVector(stl_points_rigid)
     target_dicom = o3d.PointCloud()
-    target_dicom.points = o3d.Vector3dVector(prepare_data.dicom_points)
+    target_dicom.points = o3d.Vector3dVector(prepare_data.target_dicom_points_total)
     # target_stl.points = o3d.Vector3dVector(stl_points_affine)
     #source_dicom.paint_uniform_color([0, 0.651, 0.929])  # blue
     #target_stl.paint_uniform_color([1, 0.706, 0])  # yellow
@@ -397,7 +696,7 @@ if __name__ == "__main__":
     #stl_affine.paint_uniform_color([1, 0.706, 0])
     draw_registration_result(stl_rigid, stl_affine, trans_init)
 
-    error_rigid = estimate_transformation_error(trans_best, ctl_target, ctl_source)
+    error_rigid = estimate_transformation_error(trans_rigid, ctl_target, ctl_source)
     error_affine = estimate_transformation_error(trans_final, ctl_target, ctl_source)
     print('rigid transformation mean is', np.mean(error_rigid))
     print('affine transformation mean is', np.mean(error_affine))
