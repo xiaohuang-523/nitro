@@ -4,12 +4,12 @@ from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 
 
-def spline_interpolation_3d(spline_p):
+def spline_interpolation_3d(spline_p, num_true_pts = 30):
     x_sample = spline_p[:, 0]
     y_sample = spline_p[:, 1]
     z_sample = spline_p[:, 2]
-    num_true_pts = 30
-    tck, u = interpolate.splprep([x_sample, y_sample, z_sample], k=4)
+    #num_true_pts = 30
+    tck, u = interpolate.splprep([x_sample, y_sample, z_sample], k=5)
     #x_knots, y_knots, z_knots = interpolate.splev(tck[0], tck)
     u_fine = np.linspace(0, 1, num_true_pts)
     x_fine, y_fine, z_fine = interpolate.splev(u_fine, tck)

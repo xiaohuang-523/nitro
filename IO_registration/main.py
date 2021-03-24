@@ -14,6 +14,9 @@ import prepare_data
 import spinle_interpolation as sp
 import Writers as Yomiwrite
 from stl import mesh
+import spline_grid_matching as sp_grid
+import scipy
+import interpolate_3d_points as i3d
 
 
 def draw_registration_result(source, target, transformation):
@@ -279,6 +282,7 @@ if __name__ == "__main__":
     threshold_molar = 50  # 15
     rms_threshold = 0.2
 
+    # ------- Perform local ICP for each tooth ------- #
     tooth_number = np.asarray(range(32, 16, -1))
     ICP_local = []
     ICP_rms = []
@@ -313,66 +317,24 @@ if __name__ == "__main__":
         #target_pc = o3d.PointCloud()
         #target_pc.points = o3d.Vector3dVector(prepare_data.target_dicom_points[i])
         #draw_registration_result(source_pc, target_pc, ICP_single.transformation)
-
         del ICP_single
     print('ICP_rms is', ICP_rms)
-    # exit()
-    #
-    # print('perform local registration')
-    # ICP_single = registration(voxel_size_molar, threshold_molar, prepare_data.source_stl_points[0], prepare_data.target_dicom_points[0], trans_init)
-    # print('rms is', ICP_single.inlier_rmse)
-    # exit()
-    #
-    # ICP_result = []
-    # rms = []
-    # for i in range(7):
-    #     ICP_single_tooth = registration(voxel_size_molar, threshold_molar, prepare_data.stl[i], prepare_data.dicom[i], trans_init)
-    #     ICP_result.append(ICP_single_tooth)
-    #
-    # rms_threshold = 1  # 1mm threshold
-    # rms_min = rms_threshold
-    # n_best = -1
-    # for i in range(6):
-    #     if ICP_result[i].inlier_rmse < rms_min:
-    #         rms_min = ICP_result[i].inlier_rmse
-    #         n_best = i
-    #     else:
-    #         rms_min = rms_min
-    # print(np.str(n_best + 1) + 'th tooth gives the best initial registration with rmse ' + np.str(rms_min))
-    #
-    # if n_best != -1:
-    #     trans_best = ICP_result[n_best].transformation
-    # else:
-    #     trans_best = trans_init
-    #     print('initial registration failed')
-
-    # source tooth is stl, in yellow
-    # target tooth is dicom, in blue
+    # ------- Local ICP END ------- #
+    # source tooth is stl, in yellow, target tooth is dicom, in blue
     # deform source points to match target
 
-    # Check rigid registration
-    trans_rigid = ICP_local[0].transformation
-    source_rigid = o3d.PointCloud()
-    source_rigid.points = o3d.Vector3dVector(prepare_data.source_stl_points_total)
-    target_rigid = o3d.PointCloud()
-    target_rigid.points = o3d.Vector3dVector(prepare_data.target_dicom_points_total)
-    draw_registration_result(source_rigid, target_rigid, trans_rigid)
-    #plane_target1 = generate_plate(mean_target1, axe_target1)
-    plot_3d_pc(prepare_data.source_stl_points_total)
-    plot_3d_pc(prepare_data.target_dicom_points_total)
+    # Initial registration is the local registration of the first tooth
+    trans_init = ICP_local[0].transformation
 
-    # control points are [down, mean, axis[1]]
-    source_ctl = []
-    target_ctl = []
-    #control_list = [0, 1, 2, 8, 9, 13, 14, 15]
-    control_list = range(16)
+    # Prepare control points and splines based on feature points
+    # Control points are defined using the DICOM points. [down_sampling, mean(centroid), axis[1]]
+    # Spline is fitted using the centroids of control point clouds
+    source_ctl = [] # source feature points
+    target_ctl = [] # target feature points
     for i in range(16):
         source_ctl_tem, target_ctl_tem = prepare_data.find_ctl_points(prepare_data.source_stl_points[i], prepare_data.target_dicom_points[i], ICP_local[i].transformation)
         source_ctl.append(source_ctl_tem)
         target_ctl.append(target_ctl_tem)
-
-    #spline_source = prepare_data.combine_pc(source_ctl)
-    #spline_target = prepare_data.combine_pc(target_ctl)
 
     spline_source = np.vstack((source_ctl[0][1], source_ctl[1][1]))
     spline_target = np.vstack((target_ctl[0][1], target_ctl[1][1]))
@@ -380,63 +342,140 @@ if __name__ == "__main__":
         spline_source = np.vstack((spline_source, source_ctl[i+2][1]))
         spline_target = np.vstack((spline_target, target_ctl[i+2][1]))
     Yomiwrite.write_csv_matrix("G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_target_points.csv", spline_target)
-    Yomiwrite.write_csv_matrix(
-        "G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_source_points.csv",
-        spline_source)
-    #spline_source = np.vstack((spline_source, source_ctl[6][1]))
-    #spline_source = np.vstack((spline_source, source_ctl[5][1]))
-    #spline_source = np.vstack((spline_source, source_ctl[4][1]))
-    #spline_source = np.vstack((spline_source, source_ctl[3][1]))
+    Yomiwrite.write_csv_matrix("G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_source_points.csv", spline_source)
 
-    #spline_target = np.vstack((target_ctl[0][1], target_ctl[1][1]))
-    #spline_target = np.vstack((spline_target, target_ctl[2][1]))
-    #spline_target = np.vstack((spline_target, target_ctl[6][1]))
-    #spline_target = np.vstack((spline_target, target_ctl[5][1]))
-    #spline_target = np.vstack((spline_target, target_ctl[4][1]))
-    #spline_target = np.vstack((spline_target, target_ctl[3][1]))
+    control_list = range(16)  # if all teeth are used as landmarks
+    # control_list = [0, 1, 2, 8, 9, 13, 14, 15]  # if specific landmarks are selected
 
-    # land marks definition
-    j = 0 # use surface as landmarks
-    #j = 1 # use centroid as landmarks
+    # land marks definition. Landmarks can be surface points or centroids
+    j = 0       # use surface as landmarks
+    # j = 1     # use centroid as landmarks
 
     for i in range(len(control_list)):
-        if ICP_rms[i] < 0.3:
-        #if ICP_rms[i] > 0:
+        if ICP_rms[i] < 0.3:        # Implement this for outlier rejection
+        # if ICP_rms[i] > 0:        # Allow outlier
             if i == 0:
                 ctl_source = source_ctl[control_list[i]][j]
                 ctl_target = target_ctl[control_list[i]][j]
             else:
                 ctl_source = np.vstack((ctl_source, source_ctl[control_list[i]][j]))
                 ctl_target = np.vstack((ctl_target, target_ctl[control_list[i]][j]))
-        #if ICP_rms[i+2] < 0.2:
-        #ctl_source = np.vstack((ctl_source, source_ctl[i+2][0]))
-        #ctl_target = np.vstack((ctl_target, target_ctl[i+2][0]))
-
     print('shape of control target is', np.shape(ctl_target))
     print('shape of control source is', np.shape(ctl_source))
 
+    # Optimize initial rigid registration
+    rigid_init_parameter = Yomikin.Yomi_parameters(trans_init)
+    affine_rigid_part = affine_registration.rigid_registration(rigid_init_parameter, ctl_target, ctl_source)
+    #affine_rigid_part = np.array([7.96805197e+01, -9.51933487e+01, -1.56383765e+02,  1.60008558e+00, -3.36706455e-02,  5.18630916e-02])
+    trans_rigid = Yomikin.Yomi_Base_Matrix(affine_rigid_part)
+    spline_rigid = transpose_pc(spline_source, trans_rigid)
+    Yomiwrite.write_csv_matrix("G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_rigid_points.csv", spline_rigid)
+    source_stl_points_total_rigid = transpose_pc(prepare_data.source_stl_points_total, trans_rigid)
+
+
+
+    # Perform curvilinear correction
+    # step1 fit spline and add n_number points(slices)
+    n_number = 32
+    #sample_target, fine_target = sp.spline_interpolation_3d(spline_target, n_number)
+
+    # step2 convert reference spline to target space with optimized rigid transformation  (Method 1)
+    # sample_reference, fine_reference = sp.spline_interpolation_3d(spline_source, n_number) # method 1, first generate mesh then transform
+    #fine_reference_transpose = np.asarray(fine_reference).transpose()
+    #fine_r_in_t_transpose = transpose_pc(fine_reference_transpose, trans_rigid)
+    #fine_r_in_t = [fine_r_in_t_transpose[:,0], fine_r_in_t_transpose[:,1], fine_r_in_t_transpose[:,2]]
+
+    # step2 convert reference spline to target space with optimized rigid transformation  (Method 2)
+    #sample_rigid, fine_rigid = sp.spline_interpolation_3d(spline_rigid, n_number) # method 2, first transform then generate mesh
+    #fine_r_in_t = fine_rigid
+
+    breaks_file_rigid = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_rigid_breaks.csv'
+    coe_file_rigid = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_rigid_coefficients.csv'
+    breaks_rigid = Yomiread.read_csv(breaks_file_rigid, 16)[0]
+    coe_rigid = Yomiread.read_csv(coe_file_rigid, 4)
+    fine_rigid = i3d.pp_matlab(breaks_rigid, coe_rigid, 50)
+    fine_r_in_t = fine_rigid
+
+    breaks_file_target = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_target_breaks.csv'
+    coe_file_target = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\STL_pc - trial1\\spline_target_coefficients.csv'
+    breaks_target = Yomiread.read_csv(breaks_file_target, 16)[0]
+    coe_target = Yomiread.read_csv(coe_file_target, 4)
+    fine_target = i3d.pp_matlab(breaks_target, coe_target, 50)
+
+    # step3 perform curvilinear correction with only displacement
+    displacement_x = fine_target[0] - fine_r_in_t[0]
+    displacement_y = fine_target[1] - fine_r_in_t[1]
+    displacement_z = fine_target[2] - fine_r_in_t[2]
+    displacement = [displacement_x, displacement_y, displacement_z]
+    center_t, boundary_t = sp_grid.check_curvilinear_boundary(fine_target)
+    center_r_in_t, boundary_r_in_t = sp_grid.check_curvilinear_boundary(fine_r_in_t)
+
+    spline_rigid_cylindrical = sp_grid.convert_cylindrical(spline_rigid, center_r_in_t)
+    spline_rigid_moved = sp_grid.displacement(spline_rigid, spline_rigid_cylindrical, boundary_r_in_t, displacement)
+
+    fine_rigid_point = np.array(np.asarray(fine_rigid).transpose())
+    print('fine_rigid_point is', np.shape(fine_rigid_point))
+    fine_rigid_point_cylindrical = sp_grid.convert_cylindrical(fine_rigid_point, center_r_in_t)
+    fine_rigid_point_moved = sp_grid.displacement(fine_rigid_point, fine_rigid_point_cylindrical, boundary_r_in_t, displacement)
+    print('fine_rigid_point_moved is', np.shape(fine_rigid_point_moved))
+
+    fig2 = plt.figure(2)
+    ax3d = fig2.add_subplot(111, projection='3d')
+    # #ax3d.plot(x_knots, y_knots, z_knots, color = 'blue', label = 'knots')
+    ax3d.plot(spline_target[:,0], spline_target[:,1], spline_target[:,2], color = 'r', label = 'target spline')
+    #ax3d.plot(spline_rigid[:, 0], spline_rigid[:, 1], spline_rigid[:, 2], color = 'b', label='rigid spline')
+    ax3d.plot(spline_rigid_moved[:, 0], spline_rigid_moved[:, 1], spline_rigid_moved[:, 2], color='g', label='moved spline')
+    ax3d.plot(fine_target[0], fine_target[1], fine_target[2], 'r*')
+    #ax3d.plot(fine_rigid[0], fine_rigid[1], fine_rigid[2], color='r', label='rigid')
+    ax3d.plot(fine_rigid_point_moved[:,0], fine_rigid_point_moved[:,1], fine_rigid_point_moved[:,2], color='b', label='rigid move')
+    # #ax3d.plot(x_fine_d, y_fine_d, z_fine_d, color='black', label='fine_d')
+    fig2.show()
+    plt.legend()
+    plt.show()
+
+    # print('boundary_t is', np.shape(boundary_t))
+    # print('displacement is', np.shape(displacement_x))
+    # print('displacement is', np.shape(displacement))
+    # fig = plt.figure()
+    # plt.scatter(range(len(displacement_x)), displacement_x, color='r', label = 'x')
+    # plt.scatter(range(len(displacement_y)), displacement_y, color='r', label='y')
+    # plt.scatter(range(len(displacement_z)), displacement_z, color='r', label='z')
+    # plt.legend()
+    # plt.show()
+
+    ctl_r_in_t = transpose_pc(ctl_source, trans_rigid)
+    plot_3d_pc(ctl_r_in_t)
+
+    ctl_r_in_t_cylindrical = sp_grid.convert_cylindrical(ctl_r_in_t, center_r_in_t)
+    ctl_r_in_t_moved = sp_grid.displacement(ctl_r_in_t, ctl_r_in_t_cylindrical, boundary_r_in_t, displacement)
+
+    pc_curvilinear = o3d.PointCloud()
+    pc_curvilinear.points = o3d.Vector3dVector(ctl_r_in_t_moved)
+    pc_rigid = o3d.PointCloud()
+    pc_rigid.points = o3d.Vector3dVector(ctl_r_in_t)
+    pc2 = o3d.PointCloud()
+    pc2.points = o3d.Vector3dVector(ctl_target)
+
+    draw_registration_result(pc_curvilinear, pc2, np.eye(4))
+    draw_registration_result(pc_rigid, pc2, np.eye(4))
+    draw_registration_result(pc_rigid, pc_curvilinear, np.eye(4))
+
+
     # Test affine registraion
     # Step 1 - Prepare initial guess (Use trans_best for translation and rotation) (Use eye matrix for shearing)
-    rigid_init = Yomikin.Yomi_parameters(trans_rigid)
-    trans_rigid_init = trans_rigid
-    #affine_rigid_part = rigid_init
-
-
-    affine_rigid_part = affine_registration.rigid_registration(rigid_init, ctl_target, ctl_source)
-    trans_rigid = Yomikin.Yomi_Base_Matrix(affine_rigid_part)
-
-
     affine_shear_part = np.zeros(6)
-    affine_matrix_init = np.concatenate([rigid_init, affine_shear_part])
-    affine_matrix_optimized = affine_registration.affine_registration(affine_matrix_init, ctl_target, ctl_source)
-
+    affine_matrix_init = np.concatenate([affine_rigid_part, affine_shear_part])
+    #affine_matrix_optimized = affine_registration.affine_registration(affine_matrix_init, ctl_target, ctl_source)
+    affine_matrix_optimized = np.array([ 8.05293987e+01, -9.65783900e+01, -1.59065082e+02,  1.60310915e+00,
+                                        -4.72492991e-02,  3.50372656e-02,  2.34265491e-02, -2.28752196e-03,
+                                        7.10544730e-03,  8.48296189e-04, -1.31058275e-02,  1.61407769e-02])
 
     trans_final = affine_registration.get_affine_matrix(affine_matrix_optimized)
     trans_final_file = 'G:\My Drive\Project\IntraOral Scanner Registration\Results\Accuracy FXT tests\Register_stl\\final_transformation_surface_with_XY_shear.csv'
     Yomiwrite.write_csv_matrix(trans_final_file, trans_final)
 
 
-
+    # Check accuracy
     centroid_reference = []
     centroid_target = []
     c_o_r = []
@@ -478,9 +517,18 @@ if __name__ == "__main__":
     ax3d.plot(c_r_in_t[:,0], c_r_in_t[:,1], c_r_in_t[:,2], color = 'b', label = 'target in reference')
     fig3.show()
 
+    # Spline source and target are the centroids from CT features only
+    # Centroid reference and target are the centroids from CT + IOS features
+    #centroid_reference = spline_source
+    #centroid_target = spline_target
+
     centroid_affine = transpose_pc(centroid_reference, trans_final)
     centroid_rigid = transpose_pc(centroid_reference, trans_rigid)
-    centroid_init = transpose_pc(centroid_reference, trans_rigid_init)
+    centroid_init = transpose_pc(centroid_reference, trans_init)
+
+    centroid_r_in_t = centroid_rigid
+    centroid_r_in_t_cylindrical = sp_grid.convert_cylindrical(centroid_r_in_t, center_r_in_t)
+    centroid_r_in_t_moved = sp_grid.displacement(centroid_r_in_t, centroid_r_in_t_cylindrical, boundary_r_in_t, displacement)
 
     # # get transformed principal axes - Start
     # p_axe1_r = []
@@ -552,12 +600,15 @@ if __name__ == "__main__":
     ax3d.plot(centroid_target[:, 0], centroid_target[:, 1], centroid_target[:, 2], color='r',
               label='combined centroid target')
     ax3d.plot(centroid_affine[:,0], centroid_affine[:,1], centroid_affine[:,2], color ='g', label = 'affine registration')
+    ax3d.plot(centroid_r_in_t_moved[:, 0], centroid_r_in_t_moved[:, 1], centroid_r_in_t_moved[:, 2], color='g',
+              label='curvilinear correction')
     ax3d.plot(centroid_rigid[:,0], centroid_rigid[:,1], centroid_rigid[:,2], color = 'b', label = 'rigid registration')
     fig4.show()
 
     initial_mismatch = centroid_init - centroid_target
     rigid_mismatch = centroid_rigid - centroid_target
     affine_mismatch = centroid_affine - centroid_target
+    curvilinear_mismatch = centroid_r_in_t_moved - centroid_target
     rigid_mismatch_error = []
     for point in rigid_mismatch:
         rigid_mismatch_error.append(np.linalg.norm(point))
@@ -567,11 +618,15 @@ if __name__ == "__main__":
     init_mismatch_error = []
     for point in initial_mismatch:
         init_mismatch_error.append(np.linalg.norm(point))
+    curvilinear_mismatch_error = []
+    for point in curvilinear_mismatch:
+        curvilinear_mismatch_error.append(np.linalg.norm(point))
 
     fig5 = plt.figure(5)
-    plt.scatter(range(len(rigid_mismatch_error)), rigid_mismatch_error, color = 'r', label='rigid registration error')
-    plt.scatter(range(len(affine_mismatch_error)), affine_mismatch_error, color='g', label='affine registration error')
-    plt.scatter(range(len(init_mismatch_error)), init_mismatch_error, color='b', label='initial registration error')
+    plt.scatter(range(len(rigid_mismatch_error)), rigid_mismatch_error, color = 'r', label='rigid registration mismatch')
+    plt.scatter(range(len(affine_mismatch_error)), affine_mismatch_error, color='g', label='affine registration mismatch')
+    plt.scatter(range(len(init_mismatch_error)), init_mismatch_error, color='b', label='initial registration mismatch')
+    plt.scatter(range(len(curvilinear_mismatch_error)), curvilinear_mismatch_error, color='y', label='curvilinear correction mismatch')
 
     mismatch_rigid_file = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\rigid_mismatch.csv'
     Yomiwrite.write_csv_array(mismatch_rigid_file, rigid_mismatch_error)
@@ -579,6 +634,8 @@ if __name__ == "__main__":
     Yomiwrite.write_csv_array(mismatch_affine_file, affine_mismatch_error)
     mismatch_init_file = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\initial_mismatch.csv'
     Yomiwrite.write_csv_array(mismatch_init_file, init_mismatch_error)
+    mismatch_curvilinear_file = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\curvilinear_mismatch.csv'
+    Yomiwrite.write_csv_array(mismatch_curvilinear_file, curvilinear_mismatch_error)
 
     # Plotting for checking principal axes - Start
     # fig6 = plt.figure(6)
@@ -598,6 +655,25 @@ if __name__ == "__main__":
     # Plotting for checking principal axes - End
     plt.legend()
     plt.show()
+
+
+    # Check all points
+    source_r_in_t_cylindrical = sp_grid.convert_cylindrical(source_stl_points_total_rigid, center_r_in_t)
+    source_r_in_t_moved = sp_grid.displacement(source_stl_points_total_rigid, source_r_in_t_cylindrical, boundary_r_in_t, displacement)
+    source_r_in_t_pc = o3d.PointCloud()
+    source_r_in_t_pc.points = o3d.Vector3dVector(source_r_in_t_moved)
+    plot_3d_pc(source_r_in_t_moved)
+
+    source_stl = o3d.PointCloud()
+    source_stl.points = o3d.Vector3dVector(prepare_data.source_stl_points_total)
+    # source_dicom.points = o3d.Vector3dVector(stl_points_rigid)
+    target_dicom = o3d.PointCloud()
+    target_dicom.points = o3d.Vector3dVector(prepare_data.target_dicom_points_total)
+
+    draw_registration_result(source_r_in_t_pc, target_dicom, np.eye(4))
+    exit()
+
+
 
     # Check registration of landmarks
     source_ctl_pc = o3d.PointCloud()
@@ -679,6 +755,9 @@ if __name__ == "__main__":
     # source_dicom.points = o3d.Vector3dVector(stl_points_rigid)
     target_dicom = o3d.PointCloud()
     target_dicom.points = o3d.Vector3dVector(prepare_data.target_dicom_points_total)
+
+
+
     # target_stl.points = o3d.Vector3dVector(stl_points_affine)
     #source_dicom.paint_uniform_color([0, 0.651, 0.929])  # blue
     #target_stl.paint_uniform_color([1, 0.706, 0])  # yellow
