@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import Readers as Yomiread
 from scipy import interpolate
+import coordinates
 
 
 def dis(p1, p2):
@@ -98,8 +99,9 @@ def convert_cylindrical_2D(pc, center):
 # Perform point displacement
 def displacement(pc_to_move, pc_to_move_cylindrical, spline_boundary, displacement):
     pc_moved = []
+    pc_to_move_ = np.copy(pc_to_move)
     for i in range(pc_to_move.shape[0]):
-        point = pc_to_move[i,:]
+        point = pc_to_move_[i,:]
         theta = pc_to_move_cylindrical[i, 1]
         idx = check_interval_idx_single_value(theta, spline_boundary)
         if idx > np.shape(displacement)[0]-1:
@@ -108,7 +110,37 @@ def displacement(pc_to_move, pc_to_move_cylindrical, spline_boundary, displaceme
             move = np.array([displacement[idx, 0], displacement[idx, 1], displacement[idx, 2]])
         new_point = point + move
         pc_moved.append(new_point)
+        #print('point is', point)
+        #print('new point is', new_point)
+        #print('move is', move)
+        del move
+        del new_point
     return np.asarray(pc_moved)
+
+
+# Perform point displacement
+def displacement_partial(pc_to_move, pc_to_move_cylindrical, spline_boundary, displacement):
+    pc_moved = []
+    pc_to_move_ = np.copy(pc_to_move)
+    for i in range(pc_to_move.shape[0]):
+        point = pc_to_move_[i,:]
+        theta = pc_to_move_cylindrical[i, 1]
+        idx = check_interval_idx_single_value(theta, spline_boundary)
+        if idx > np.shape(displacement)[0]-1:
+            move = np.array([0, 0, 0])
+        elif idx == 0:
+            move = np.array([0, 0, 0])
+        else:
+            move = np.array([displacement[idx, 0], displacement[idx, 1], displacement[idx, 2]])
+        new_point = point + move
+        pc_moved.append(new_point)
+        #print('point is', point)
+        #print('new point is', new_point)
+        #print('move is', move)
+        del move
+        del new_point
+    return np.asarray(pc_moved)
+
 
 
 # Split curve into equal pieces

@@ -10,6 +10,7 @@ import spline_correction as sc
 import Writers as Yomiwrite
 import interpolate_3d_points as i3d
 import spline_grid_matching as sp_grid
+import coordinates
 
 
 def transpose_pc(pc_2b_convert, transformation):
@@ -89,9 +90,10 @@ if __name__ == '__main__':
     THRESHOLD_ICP = 50  # 15
     RMS_LOCAL_REGISTRATION = 0.2
     TOOTH_NUMBER = np.asarray(range(32, 16, -1))
-    MISSING_TOOTH_NUMBER = [19, 20, 21]
+    MISSING_TOOTH_NUMBER = [28, 29, 30]
+    ORIGINAL_NO_MISSING = []
     #MISSING_TOOTH_NUMBER = []
-    NEIGHBOUR_TOOTH = [18]
+    NEIGHBOUR_TOOTH = [31]
     NUMBER_SPLINE_GUIDED_POINTS = 100
 
     # ---- Define global file paths
@@ -103,6 +105,7 @@ if __name__ == '__main__':
     stl_file_name = 'new_stl_points_tooth'
     dicom_file_name = 'new_dicom_points_tooth'
 
+    arch_ct_original = fe.FullArch(ORIGINAL_NO_MISSING, 'CT', 'CT')
     arch_ios = fe.FullArch(MISSING_TOOTH_NUMBER, 'IOS', 'IOS')
     arch_ct = fe.FullArch(MISSING_TOOTH_NUMBER, 'CT', 'CT')
     # convert ct features to IOS space with rigid transformation
@@ -139,6 +142,7 @@ if __name__ == '__main__':
     # Update spline points
     arch_ios.update_spline()
     arch_ct.update_spline()
+    arch_ct_original.update_spline()
 
     # ---- Perform initial alignment
     trans_init = arch_ct.get_tooth(NEIGHBOUR_TOOTH).local_ICP_transformation
@@ -155,18 +159,103 @@ if __name__ == '__main__':
 
     # Update spline points
     arch_ct_in_ios.update_spline(fine_flag=True)
-    #arch_ct_to_ios.update_spline()
+    arch_ct_to_ios.update_spline(fine_flag=True)
+
+    print('displacement check', arch_ct_to_ios.spline_points - arch_ct_in_ios.spline_points)
+    print('original spline is', arch_ct_in_ios.spline_points)
+    print('target spline is', arch_ct_to_ios.spline_points)
+    displacement = arch_ct_to_ios.spline_points_fine - arch_ct_in_ios.spline_points_fine
+    corrected_spline = sc.displacement(arch_ct_in_ios.spline_points, arch_ct_in_ios.spline_points_cylindrical, arch_ct_in_ios.spline_points_fine_cylindrical_mid_points, displacement)
+    print('corrected spline is', corrected_spline)
+
+    for i in arch_ct_to_ios.tooth_list:
+        candidate_tooth = arch_ct_in_ios.get_tooth(i).points
+        candidate_tooth_cylindrical = coordinates.convert_cylindrical(candidate_tooth, arch_ct_in_ios.spline_points_cylindrical_center)
+        corrected_tooth = sc.displacement(candidate_tooth, candidate_tooth_cylindrical,arch_ct_in_ios.spline_points_fine_cylindrical_mid_points, displacement)
+        corrected_tooth_feature = fe.ToothFeature(corrected_tooth, i, 'CT', 'IOS')
+        arch_ct_in_ios_curvilinear_correction.add_tooth(i, corrected_tooth_feature)
+
+        candidate2_tooth = arch_ios.get_tooth(i).points
+        candidate2_tooth_cylindrical = coordinates.convert_cylindrical(candidate2_tooth, arch_ct_in_ios.spline_points_cylindrical_center)
+        corrected2_tooth = sc.displacement(candidate2_tooth, candidate2_tooth_cylindrical,arch_ct_in_ios.spline_points_fine_cylindrical_mid_points, displacement)
+        corrected2_tooth_feature = fe.ToothFeature(corrected2_tooth, i, 'IOS', 'IOS')
+        arch_ios_curvilinear_correction.add_tooth(i, corrected2_tooth_feature)
+
+        del candidate_tooth, candidate2_tooth
+
+
+    arch_ios_curvilinear_correction.update_spline()
+    arch_ct_in_ios_curvilinear_correction.update_spline()
+
+
+    correction_error = []
+    corrected_spline = []   # spline after curvilinear correction
+    correction_spline = []  # spline before curvilinear correction
+    original_full_spline = []    # spline of arch_ct_to_ios
+    for i in arch_ct_to_ios.tooth_list:
+        error = arch_ct_to_ios.get_spline_points(i) - arch_ct_in_ios_curvilinear_correction.get_spline_points(i)
+        correction_error.append(np.linalg.norm(error))
+        original_full_spline.append(arch_ct_to_ios.get_tooth(i).centroid)
+        #original_spline.append(arch_ct_to_ios.get_spline_points(i))
+        corrected_spline.append(arch_ct_in_ios_curvilinear_correction.get_spline_points(i))
+        #correction_spline.append(arch_ct_in_ios.get_spline_points(i))
+    corrected_spline = np.asarray(corrected_spline)
+    #original_spline = np.asarray(original_spline)
+    #correction_spline = np.asarray(correction_spline)
+
+    original_full_spline = np.asarray(original_full_spline)
+    fig1 = plt.figure()
+    plt.scatter(range(len(correction_error)), correction_error)
+
+
+    fig2 = plt.figure()
+    plt.scatter(original_full_spline[:, 0], original_full_spline[:, 1], label='original full spline points',
+                color='red')
+    plt.plot(arch_ct_to_ios.spline_points_fine[:, 0], arch_ct_to_ios.spline_points_fine[:, 1], '-', label='spline with missing teeth',
+             color='green')
+    plt.scatter(corrected_spline[:, 0], corrected_spline[:, 1], label='corrected spline', color='blue')
+    # plt.plot(test[:,0], test[:,1], label='test')
+    plt.legend()
+    plt.show()
+
+    # Update all points for drawing
+    arch_ios.update_all_teeth_points(missing_tooth_flag=True)
+    arch_ct_in_ios.update_all_teeth_points(missing_tooth_flag=True)
+    arch_ct_to_ios.update_all_teeth_points(missing_tooth_flag=True)
+    arch_ct_in_ios_curvilinear_correction.update_all_teeth_points(missing_tooth_flag=True)
+    arch_ios_curvilinear_correction.update_all_teeth_points(missing_tooth_flag=True)
+
+    print('checking rigid transformation')
+    draw_registration_result_points_array(arch_ios.allpoints, arch_ct_to_ios.allpoints, np.eye(4))
+    print('checking local ICP')
+    draw_registration_result_points_array(arch_ios.allpoints, arch_ct_in_ios.allpoints, np.eye(4))
+    print('checking curvilinear correction')
+    draw_registration_result_points_array(arch_ios_curvilinear_correction.allpoints, arch_ct_to_ios.allpoints, np.eye(4))
+    print('checking curvilinear correction guided points')
+    draw_registration_result_points_array(arch_ct_in_ios_curvilinear_correction.allpoints, arch_ct_to_ios.allpoints, np.eye(4))
+    exit()
+
+
+    corrected_spline = np.asarray(corrected_spline)
+    #original_spline = np.asarray(original_spline)
+    correction_spline = np.asarray(correction_spline)
+
 
     #fine_spline = sc.fit_spline_and_split_2(arch_ct_in_ios.spline_points)
-    print('shape is', np.shape(arch_ct_in_ios.spline_points_fine))
+    #print('shape is', np.shape(arch_ct_in_ios.spline_points_fine))
+
 
     fig1 = plt.figure()
-    plt.scatter(arch_ct_in_ios.spline_points[:,0], arch_ct_in_ios.spline_points[:,1], label = 'original spline points', color='red')
-    #plt.scatter(correction_spline[:,0], correction_spline[:,1], label = 'correction_spline', color='green')
-    plt.plot(arch_ct_in_ios.spline_points_fine[:, 0], arch_ct_in_ios.spline_points_fine[:, 1], '-', label='fine_spline', color='blue')
+    plt.scatter(arch_ct_to_ios.spline_points[:,0], arch_ct_to_ios.spline_points[:,1], label = 'original spline points', color='red')
+    plt.scatter(corrected_spline[:,0], corrected_spline[:,1], label = 'corrected_spline', color='green')
+    plt.plot(arch_ct_to_ios.spline_points_fine[:, 0], arch_ct_to_ios.spline_points_fine[:, 1], '-', label='fine_spline', color='blue')
     #plt.plot(corrected_guide_points[:, 0], corrected_guide_points[:, 1], label='corrected guided_points', color='blue')
     #plt.plot(test[:,0], test[:,1], label='test')
     plt.legend()
+
+    plt.figure()
+    plt.scatter(range(len(arch_ct_in_ios.spline_points_fine_cylindrical_mid_points)), arch_ct_in_ios.spline_points_fine_cylindrical_mid_points)
+
     plt.show()
     exit()
 

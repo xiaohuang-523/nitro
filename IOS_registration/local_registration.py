@@ -98,6 +98,56 @@ def registration(voxel_size, threshold, source_points, target_points, trans_init
     return reg_p2p3
 
 
+def registration_simple_pc(voxel_size, threshold, source_points, target_points, trans_init):
+    source, target, source_down, target_down, source_fpfh, target_fpfh = \
+        prepare_dataset(voxel_size, source_points, target_points, trans_init)
+
+    result_ransac = execute_global_registration(source_down, target_down,
+                                                source_fpfh, target_fpfh,
+                                                voxel_size)
+
+    # perform ICP registration
+    o3d.estimate_normals(source, search_param=o3d.KDTreeSearchParamHybrid(radius=1, max_nn=30))
+    o3d.estimate_normals(target, search_param=o3d.KDTreeSearchParamHybrid(radius=1, max_nn=30))
+    trans_init = result_ransac.transformation
+
+    # print("Initial alignment")
+    evaluation = o3d.registration.evaluate_registration(source, target, threshold, trans_init)
+    # print(evaluation)
+
+    # print("Apply point-to-point ICP")
+    reg_p2p = o3d.registration.registration_icp(
+        source, target, threshold, trans_init,
+        o3d.registration.TransformationEstimationPointToPoint())
+    # print(reg_p2p)
+    # print("Transformation is:")
+    # print(reg_p2p.transformation)
+    # draw_registration_result(source, target, reg_p2p.transformation)
+
+    # second ICP
+    trans_init2 = reg_p2p.transformation
+    # print("Apply 2nd point-to-point ICP")
+    reg_p2p2 = o3d.registration.registration_icp(
+        source, target, threshold, trans_init2,
+        o3d.registration.TransformationEstimationPointToPoint())
+    # draw_registration_result(source, target, reg_p2p2.transformation)
+
+    # third ICP
+    trans_init3 = reg_p2p2.transformation
+    # print("Apply 3rd point-to-point ICP")
+    reg_p2p3 = o3d.registration.registration_icp(
+        source, target, threshold, trans_init3,
+        o3d.registration.TransformationEstimationPointToPoint())
+    # print('checking rms')
+    # print(reg_p2p3.inlier_rmse)
+    # print(reg_p2p3)
+    # print("Transformation 3 is:")
+    # print(reg_p2p3.transformation)
+    # print("")
+    # draw_registration_result(source, target, reg_p2p3.transformation)
+    return reg_p2p3
+
+
 # Local registration is performed on each pair of the teeth in two arches
 # The registration is to tranpose and align source arch (IOS) with target arch (CT)
 def do_local_registration(TRANS_INIT, THRESHOLD_MOLAR, RMS_THRESHOLD, source_arch, target_arch, DEBUG=1):
@@ -132,3 +182,4 @@ def do_local_registration(TRANS_INIT, THRESHOLD_MOLAR, RMS_THRESHOLD, source_arc
         source_arch.get_tooth(i).local_ICP_transformation = ICP_single.transformation
         target_arch.get_tooth(i).local_ICP_transformation = np.linalg.inv(ICP_single.transformation)
         del ICP_single
+
