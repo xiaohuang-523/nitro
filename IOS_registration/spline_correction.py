@@ -142,6 +142,30 @@ def displacement_partial(pc_to_move, pc_to_move_cylindrical, spline_boundary, di
     return np.asarray(pc_moved)
 
 
+# Perform point displacement
+def displacement_partial_version2(pc_to_move, pc_to_move_cylindrical, spline_boundary, ignore_boundary, displacement):
+    pc_moved = []
+    pc_to_move_ = np.copy(pc_to_move)
+    for i in range(pc_to_move.shape[0]):
+        point = pc_to_move_[i,:]
+        theta = pc_to_move_cylindrical[i, 1]
+        if theta > ignore_boundary[0] and theta < ignore_boundary[1]:
+            move = np.array([0,0,0])
+        else:
+            idx = check_interval_idx_single_value(theta, spline_boundary)
+            if idx > np.shape(displacement)[0]-1:
+                move = np.array([displacement[-1, 0], displacement[-1, 1], displacement[-1, 2]])
+            elif idx == 0:
+                move = np.array([0, 0, 0])
+            else:
+                move = np.array([displacement[idx, 0], displacement[idx, 1], displacement[idx, 2]])
+        new_point = point + move
+        pc_moved.append(new_point)
+        del move
+        del new_point
+    return np.asarray(pc_moved)
+
+
 
 # Split curve into equal pieces
 # Work with fitted spline curve using scipy spline curve fitting function.

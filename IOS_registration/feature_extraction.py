@@ -7,6 +7,7 @@ import numpy as np
 import Readers as Yomiread
 from scipy import interpolate
 import coordinates
+import matplotlib.pyplot as plt
 
 
 def combine_pc(list):
@@ -97,6 +98,9 @@ def fit_spline_and_split_fxt(spline_points,  guiding_spline_points, segment_numb
     y = spline_points_array[:,1]
     z = spline_points_array[:,2]
 
+    # Possible errors: https://stackoverflow.com/questions/46816099/scipy-interpolate-splrep-data-error
+    #plt.scatter(x, y)
+    #plt.show()
     tck_xy = interpolate.splrep(x, y, s=0)
     tck_xz = interpolate.splrep(x, z, s=0)
     deltax = 1e-5
@@ -187,6 +191,7 @@ class FullArch:
         for i in range(len(self.missing_tooth_list)):
             self.missing_tooth.append([])
         self.allpoints = []
+        self.ignore_boundary = [-np.pi/2, -np.pi/3]   # initial values are to make sure all points are used by default
 
     def add_tooth(self, tooth_number, tooth_feature):   # add tooth features to corresponding idx.
         if tooth_number in self.existing_tooth_list:
@@ -250,6 +255,20 @@ class FullArch:
             missing_spline_points_tem.append(tooth.centroid)
         self.missing_spline_points = np.asarray(missing_spline_points_tem)
         del missing_spline_points_tem
+
+    def update_ignore_boundary(self):
+        min_theta = []
+        max_theta = []
+        for i in self.missing_tooth_list:
+            points_tem = self.get_tooth(i).points
+            points_tem_cylindrical = coordinates.convert_cylindrical(points_tem, self.spline_points_cylindrical_center)
+            min_theta.append(np.min(points_tem_cylindrical[:,1]))
+            max_theta.append(np.max(points_tem_cylindrical[:,1]))
+        self.ignore_boundary[0] = np.min(np.asarray(min_theta))
+        self.ignore_boundary[1] = np.max(np.asarray(max_theta))
+
+
+
 
 
 # fixture class which includes the features of splint fixture.

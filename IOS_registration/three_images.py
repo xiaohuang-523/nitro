@@ -91,15 +91,17 @@ if __name__ == '__main__':
     THRESHOLD_ICP = 50  # 15
     RMS_LOCAL_REGISTRATION = 0.2
     TOOTH_NUMBER = np.asarray(range(32, 16, -1))
-    MISSING_TOOTH_NUMBER = [19, 20, 21]
+
+    MISSING_TOOTH_NUMBER = [29, 30, 31]
     ORIGINAL_NO_MISSING = []
     # MISSING_TOOTH_NUMBER = []
-    FXT_ALIGN_TOOTH = [20]  # middle tooth in missing tooth number
-    NEIGHBOUR_TOOTH = [18]
+    FXT_ALIGN_TOOTH = [30]  # middle tooth in missing tooth number
+    NEIGHBOUR_TOOTH = [32]
     NUMBER_SPLINE_GUIDED_POINTS = 100
 
-    MISSING_TOOTH_NUMBER_STEP2 = [17, 18, 19, 20, 21]
-    NEIGHBOUR_TOOTH_STEP2 = [18, 22]
+    #MISSING_TOOTH_NUMBER_STEP2 = [17, 18, 19, 20, 21]
+    MISSING_TOOTH_NUMBER_STEP2 = [29, 30, 31]
+    NEIGHBOUR_TOOTH_STEP2 = [28, 32]
 
     # ---- Define global file paths
     RESULT_TEM_BASE = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\Point Cloud and Registration TEMP\\"
@@ -164,6 +166,7 @@ if __name__ == '__main__':
         points_virtual_tem = transpose_pc(arch_ct_original.get_tooth(i).points, arch_ct_original.get_tooth(i).local_ICP_transformation)
         tooth_feature_rigid_tem = fe.ToothFeature(points_rigid_tem, i, 'CT', 'IOS')
         tooth_feature_virtual_tem = fe.ToothFeature(points_virtual_tem, i, 'CT', 'IOS')
+        arch_ct_to_ios.add_tooth(i, tooth_feature_rigid_tem)
         arch_ct_to_ios_fxt.add_tooth(i, tooth_feature_rigid_tem)
         arch_ct_in_ios_fxt.add_tooth(i, tooth_feature_virtual_tem)
         del points_rigid_tem, tooth_feature_rigid_tem, points_virtual_tem, tooth_feature_virtual_tem
@@ -223,22 +226,26 @@ if __name__ == '__main__':
     plt.scatter(corrected_spline[:, 0], corrected_spline[:, 1], label='corrected spline', color='blue')
     # plt.plot(test[:,0], test[:,1], label='test')
     plt.legend()
-    plt.show()
+    #plt.show()
 
     #exit()
     arch_ios_2 = fe.FullArch(MISSING_TOOTH_NUMBER_STEP2, 'IOS', 'IOS')  # the ios arch after 1st step correction
-    arch_ct_to_ios = fe.FullArch(MISSING_TOOTH_NUMBER_STEP2, 'CT', 'IOS')
+    arch_ios_3 = fe.FullArch(MISSING_TOOTH_NUMBER_STEP2, 'IOS', 'IOS')  # the ios arch after 1st step correction
+    #arch_ct_to_ios = fe.FullArch(MISSING_TOOTH_NUMBER_STEP2, 'CT', 'IOS')
 
     for i in TOOTH_NUMBER:
         arch_ios_2.add_tooth(i, arch_ct_in_ios_fxt_curvilinear_correction.get_tooth(i))
 
     # Update spline points
     arch_ios_2.update_spline()
+    #arch_ios_2.update_ignore_boundary()
+    #print('arch_ct_ios_ignore boundary is', arch_ios_2.ignore_boundary)
+    #exit()
 
     ctl_target = []
     ctl_source = []
     for i in NEIGHBOUR_TOOTH_STEP2:
-        ctl_target.append(arch_ct_to_ios_fxt.get_tooth(i).points)
+        ctl_target.append(arch_ct_to_ios.get_tooth(i).points)
         ctl_source.append(arch_ios_2.get_tooth(i).points)
     ctl_source = combine_pc(ctl_source)
     ctl_target = combine_pc(ctl_target)
@@ -256,15 +263,21 @@ if __name__ == '__main__':
         #points_virtual_tem = transpose_pc(arch_ct.get_tooth(i).points, arch_ct.get_tooth(i).local_ICP_transformation)
         tooth_feature_rigid_tem = fe.ToothFeature(points_rigid_tem, i, 'CT', 'IOS')
         #tooth_feature_virtual_tem = fe.ToothFeature(points_virtual_tem, i, 'CT', 'IOS')
-        arch_ct_to_ios.add_tooth(i, tooth_feature_rigid_tem)
+        arch_ios_3.add_tooth(i, tooth_feature_rigid_tem)
         #arch_ct_in_ios.add_tooth(i, tooth_feature_virtual_tem)
         del points_rigid_tem, tooth_feature_rigid_tem #points_virtual_tem, tooth_feature_virtual_tem
 
-    arch_ct_in_ios = arch_ios_2
+    arch_ct_in_ios = arch_ios_3
 
     # Update spline points
     arch_ct_in_ios.update_spline(fine_flag=True)
     arch_ct_to_ios.update_spline(fine_flag=True)
+
+    arch_ct_in_ios.update_ignore_boundary()
+    arch_ct_to_ios.update_ignore_boundary()
+    print('arch_ct_ios_ignore boundary is', arch_ct_in_ios.ignore_boundary)
+    #exit()
+
 
     print('displacement check', arch_ct_to_ios.spline_points - arch_ct_in_ios.spline_points)
     print('original spline is', arch_ct_in_ios.spline_points)
@@ -274,20 +287,28 @@ if __name__ == '__main__':
                                        arch_ct_in_ios.spline_points_fine_cylindrical_mid_points, displacement)
     print('corrected spline is', corrected_spline)
 
+
+
     for i in arch_ct_to_ios.tooth_list:
         candidate_tooth = arch_ct_in_ios.get_tooth(i).points
         candidate_tooth_cylindrical = coordinates.convert_cylindrical(candidate_tooth,
                                                                       arch_ct_in_ios.spline_points_cylindrical_center)
-        corrected_tooth = sc.displacement_partial(candidate_tooth, candidate_tooth_cylindrical,
-                                          arch_ct_in_ios.spline_points_fine_cylindrical_mid_points, displacement)
+        #corrected_tooth = sc.displacement_partial(candidate_tooth, candidate_tooth_cylindrical,
+        #                                  arch_ct_in_ios.spline_points_fine_cylindrical_mid_points, displacement)
+        corrected_tooth = sc.displacement_partial_version2(candidate_tooth, candidate_tooth_cylindrical,
+                                                  arch_ct_in_ios.spline_points_fine_cylindrical_mid_points, arch_ct_in_ios.ignore_boundary,
+                                                  displacement)
         corrected_tooth_feature = fe.ToothFeature(corrected_tooth, i, 'CT', 'IOS')
         arch_ct_in_ios_curvilinear_correction.add_tooth(i, corrected_tooth_feature)
 
         candidate2_tooth = arch_ios.get_tooth(i).points
         candidate2_tooth_cylindrical = coordinates.convert_cylindrical(candidate2_tooth,
                                                                        arch_ct_in_ios.spline_points_cylindrical_center)
-        corrected2_tooth = sc.displacement_partial(candidate2_tooth, candidate2_tooth_cylindrical,
-                                           arch_ct_in_ios.spline_points_fine_cylindrical_mid_points, displacement)
+        #corrected2_tooth = sc.displacement_partial(candidate2_tooth, candidate2_tooth_cylindrical,
+         #                                  arch_ct_in_ios.spline_points_fine_cylindrical_mid_points, displacement)
+        corrected2_tooth = sc.displacement_partial_version2(candidate2_tooth, candidate2_tooth_cylindrical,
+                                           arch_ct_in_ios.spline_points_fine_cylindrical_mid_points, arch_ct_in_ios.ignore_boundary, displacement)
+
         corrected2_tooth_feature = fe.ToothFeature(corrected2_tooth, i, 'IOS', 'IOS')
         arch_ios_curvilinear_correction.add_tooth(i, corrected2_tooth_feature)
 
@@ -314,6 +335,8 @@ if __name__ == '__main__':
     original_full_spline = np.asarray(original_full_spline)
     fig1 = plt.figure()
     plt.scatter(range(len(correction_error)), correction_error)
+    plt.savefig(RESULT_TEM_BASE + "matching_error_missing_teeth" + np.str(MISSING_TOOTH_NUMBER[0]) + '_' + np.str(MISSING_TOOTH_NUMBER[1]) + '_' + np.str(MISSING_TOOTH_NUMBER[2]))
+    Yomiwrite.write_csv_matrix(RESULT_TEM_BASE + "matching_error_missing_teeth" + np.str(MISSING_TOOTH_NUMBER[0]) + '_' + np.str(MISSING_TOOTH_NUMBER[1]) + '_' + np.str(MISSING_TOOTH_NUMBER[2]) + '.txt', correction_error)
 
     fig2 = plt.figure()
     plt.scatter(original_full_spline[:, 0], original_full_spline[:, 1], label='original full spline points',
