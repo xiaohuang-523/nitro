@@ -2,6 +2,34 @@
 
 import open3d as o3d
 import numpy as np
+import copy
+
+def draw_registration_result_o3d_point_cloud(source, target, transformation):
+    source_temp = copy.deepcopy(source)
+    target_temp = copy.deepcopy(target)
+    source_temp.paint_uniform_color([1, 0.706, 0])  # yellow
+    # source_temp.paint_uniform_color([0.8, 0, 0.4])      # red
+    target_temp.paint_uniform_color([0, 0.651, 0.929])  # blue
+    source_temp.transform(transformation)
+    o3d.visualization.draw_geometries([source_temp, target_temp])
+
+
+def draw_registration_result_points_array(source, target, transformation):
+    source_tem = copy.deepcopy(source)
+    target_tem = copy.deepcopy(target)
+
+    source_pc = o3d.PointCloud()
+    source_pc.points = o3d.Vector3dVector(source_tem)
+
+    target_pc = o3d.PointCloud()
+    target_pc.points = o3d.Vector3dVector(target_tem)
+
+    source_pc.paint_uniform_color([1, 0.706, 0])  # yellow
+    # source_temp.paint_uniform_color([0.8, 0, 0.4])      # red
+    target_pc.paint_uniform_color([0, 0.651, 0.929])  # blue
+    source_pc.transform(transformation)
+    o3d.visualization.draw_geometries([source_pc, target_pc])
+
 
 
 def preprocess_point_cloud(pcd, voxel_size):
@@ -181,5 +209,11 @@ def do_local_registration(TRANS_INIT, THRESHOLD_MOLAR, RMS_THRESHOLD, source_arc
         source_arch.get_tooth(i).ICP = ICP_single
         source_arch.get_tooth(i).local_ICP_transformation = ICP_single.transformation
         target_arch.get_tooth(i).local_ICP_transformation = np.linalg.inv(ICP_single.transformation)
+
+        # for presentation purpose
+        #draw_registration_result_points_array(source_arch.get_tooth(i).points, target_arch.get_tooth(i).points,
+        #                                      ICP_single.transformation)
+        #print('registration rms is', ICP_single.inlier_rmse)
+
         del ICP_single
 

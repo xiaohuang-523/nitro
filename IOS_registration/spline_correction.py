@@ -55,6 +55,7 @@ def check_interval_idx(values, intervals):
 
 
 def check_interval_idx_single_value(value, intervals):
+    #print('interval is', intervals)
     if intervals[0] < intervals[-1]:
         idx = np.searchsorted(intervals, value, side="left")  # ascending order
     if intervals[0] > intervals[-1]:
@@ -118,6 +119,25 @@ def displacement(pc_to_move, pc_to_move_cylindrical, spline_boundary, displaceme
     return np.asarray(pc_moved)
 
 
+def displacement_single_point(pc_to_move, pc_to_move_cylindrical, spline_boundary, displacement):
+    pc_moved = []
+    pc_to_move_ = np.copy(pc_to_move)
+
+    point = pc_to_move_
+    theta = pc_to_move_cylindrical[1]
+    idx = check_interval_idx_single_value(theta, spline_boundary)
+    if idx > np.shape(displacement)[0]-1:
+        move = np.array([displacement[-1, 0], displacement[-1, 1], displacement[-1, 2]])
+        #move = np.array([displacement[-1, 0], displacement[-1, 1], 0])
+    else:
+        move = np.array([displacement[idx, 0], displacement[idx, 1], displacement[idx, 2]])
+        #move = np.array([displacement[idx, 0], displacement[idx, 1], 0])
+    new_point = point + move
+    pc_moved = new_point
+    return np.asarray(pc_moved)
+
+
+
 # Perform point displacement
 def displacement_partial(pc_to_move, pc_to_move_cylindrical, spline_boundary, displacement):
     pc_moved = []
@@ -156,7 +176,7 @@ def displacement_partial_version2(pc_to_move, pc_to_move_cylindrical, spline_bou
             if idx > np.shape(displacement)[0]-1:
                 move = np.array([displacement[-1, 0], displacement[-1, 1], displacement[-1, 2]])
             elif idx == 0:
-                move = np.array([0, 0, 0])
+                move = np.array([displacement[0, 0], displacement[0, 1], displacement[0, 2]])
             else:
                 move = np.array([displacement[idx, 0], displacement[idx, 1], displacement[idx, 2]])
         new_point = point + move

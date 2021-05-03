@@ -22,65 +22,77 @@ def transpose_pc(pc_2b_convert, transformation):
     return np.asarray(pc_converted)
 
 
-
-
-
-
 trial1_file = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\Trial1 - FXT1\\peak_location.txt"
 trial2_file = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\Trial2\\peak_location.txt"
 trial3_file = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\Attached_full\\4152021-Full_IOS_Splint-4152021\\peak_location.txt"
 trial3_result = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\Attached_full\\4152021-Full_IOS_Splint-4152021\\transformed_ground.txt"
 
-
 v2_file = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\IOS_splint_v2\\attached_trial1\\trial1\\peak_location.txt"
-v2_result = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\IOS_splint_v2\\attached_trial1\\trial1\\transformed_ground.txt"
+v2_result_before = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\IOS_splint_v2\\attached_trial1\\trial1\\rigid_error.txt"
+v2_result_after = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\IOS_splint_v2\\attached_trial1\\trial1\\non-rigid_error.txt"
 
+v2_file_2 = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\IOS_splint_v2\\separate\\trial1\\peak_location.txt"
+v2_result_2_before = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\IOS_splint_v2\\separate\\trial1\\rigid_error.txt"
+v2_result_2_after = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\IOS_splint_v2\\separate\\trial1\\non-rigid_error.txt"
 
 ground_file = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\designed_landmarks.txt"
 ground_v2_file = "G:\\My Drive\\Project\\IntraOral Scanner Registration\\IOS_scan_raw_data\\IOS Splint\\designed_landmarks_v2.txt"
-trial1 = Yomiread.read_csv(trial1_file, 4)[:,1:]
-trial2 = Yomiread.read_csv(trial2_file, 4)[:,1:]
+#trial1 = Yomiread.read_csv(trial1_file, 4)[:,1:]
+#trial2 = Yomiread.read_csv(trial2_file, 4)[:,1:]
 
-trial3 = Yomiread.read_csv(trial3_file, 4)[:,1:]
-ground = Yomiread.read_csv(ground_file,4)[:,1:]
+trial3 = Yomiread.read_csv(v2_file_2, 4)[:,1:]
+ground = Yomiread.read_csv(ground_v2_file,4)[:,1:]
 
 trans_init = np.eye(4)
 rigid_init_parameter = Yomikin.Yomi_parameters(trans_init)
 affine_rigid_part = affine_registration.rigid_registration(rigid_init_parameter, ground, trial3)
 trans_rigid = Yomikin.Yomi_Base_Matrix(affine_rigid_part)
 
+modify_parameters = np.array([0, 0, 0, -np.pi/6, 0, 0])
+modify_matrix = Yomikin.Yomi_Base_Matrix(modify_parameters)
+
+
 ground_transformed = transpose_pc(ground, np.linalg.inv(trans_rigid))
+
+#trial3 = transpose_pc(trial3, modify_matrix)
+#ground_transformed = transpose_pc(ground_transformed, modify_matrix)
+
 delta = trial3 - ground_transformed
 print('delta is', trial3 - ground_transformed)
 print('delta is', np.linalg.norm(delta, axis=1))
 
 center_2 = np.array([-30.3, 6.5, 211])
 
-Yomiwrite.write_csv_matrix(trial3_result, ground_transformed)
+#Yomiwrite.write_csv_matrix(v2_result, ground_transformed)
 
 #fiducial_list = np.array([0, 1, 4, 7])
-fiducial_list = np.array([1, 3, 6, 7])
+#fiducial_list = np.asarray(range(8))
+fiducial_list = np.array([0, 1, 2, 3, 4, 5, 6, 7])
 
 splint_geometry = fe.Splint(fiducial_list, type='Geometry', spline_base_axis='x')
 splint_ios = fe.Splint(fiducial_list, type='IOS', spline_base_axis='x')
 splint_ios_corrected = fe.Splint(fiducial_list, type='IOS', spline_base_axis='x')
 
-ground_transformed = np.flip(ground_transformed, 0)
-trial3 = np.flip(trial3, 0)
+#ground_transformed = np.flip(ground_transformed, 0)
+#trial3 = np.flip(trial3, 0)
 
-ground_transformed_tem = np.copy(ground_transformed)
-trial3_tem = np.copy(trial3)
-print('ground_transformed_tem is', ground_transformed)
+#ground_transformed_tem = np.copy(ground_transformed)
+#trial3_tem = np.copy(trial3)
+#print('ground_transformed_tem is', ground_transformed)
 
-ground_transformed[:,0] = ground_transformed_tem[:,1]
-ground_transformed[:,1] = ground_transformed_tem[:,0]
-trial3[:,0] = trial3_tem[:,1]
-trial3[:,1] = trial3_tem[:,0]
-print('ground_transformed_tem is', ground_transformed)
+#ground_transformed[:,0] = ground_transformed_tem[:,1]
+#ground_transformed[:,1] = ground_transformed_tem[:,0]
+#trial3[:,0] = trial3_tem[:,1]
+#trial3[:,1] = trial3_tem[:,0]
+#print('ground_transformed_tem is', ground_transformed)
 
 for i in range(np.shape(trial3)[0]):
     splint_geometry.add_pyramid(i, ground_transformed[i,:])
     splint_ios.add_pyramid(i, trial3[i,:])
+
+print('fiducial list is', splint_geometry.pyramid_fiducial_list)
+print('target list is', splint_geometry.pyramid_target_list)
+print('all list is', splint_geometry.pyramid_number_list)
 
 splint_geometry.update_spline(fine_flag=True)
 splint_ios.update_spline(fine_flag=True)
@@ -102,9 +114,24 @@ for i in splint_ios.pyramid_number_list:
     print('target point is', splint_geometry.get_pyramid(i))
     splint_ios_corrected.add_pyramid(i, point_moved)
 
-diff_before = np.linalg.norm(np.asarray(splint_geometry.pyramid_points) - np.asarray(splint_ios.pyramid_points), axis=1)
-diff_after = np.linalg.norm(np.asarray(splint_geometry.pyramid_points) - np.asarray(splint_ios_corrected.pyramid_points), axis=1)
+diff_before = np.asarray(splint_geometry.pyramid_points) - np.asarray(splint_ios.pyramid_points)
+diff_after = np.asarray(splint_geometry.pyramid_points) - np.asarray(splint_ios_corrected.pyramid_points)
+diff_before_norm = np.linalg.norm(diff_before, axis=1)
+diff_after_norm = np.linalg.norm(diff_after, axis=1)
+diff_before_norm_2d = np.linalg.norm(diff_before[:,0:2], axis=1)
+diff_after_norm_2d = np.linalg.norm(diff_after[:,0:2], axis=1)
 
+Yomiwrite.write_csv_matrix(v2_result_2_before, diff_before_norm)
+Yomiwrite.write_csv_matrix(v2_result_2_after, diff_after_norm)
+
+print('point is', splint_geometry.pyramid_points)
+
+fig1 = plt.figure()
+plt.scatter(range(np.shape(splint_geometry.spline_points_fine_cylindrical_mid_points)[0]), splint_geometry.spline_points_fine_cylindrical_mid_points, label='theta check')
+#plt.scatter(range(np.shape(splint_geometry.spline_points_fine_cylindrical_mid_points)[0]), splint_geometry.spline_points_fine_cylindrical_mid_points[:,0], label='r check')
+#plt.scatter(range(np.shape(splint_geometry.spline_points_fine)[0]), splint_geometry.spline_points_fine[:,1], label='y check')
+#plt.scatter(range(np.shape(splint_geometry.spline_points_fine)[0]), splint_geometry.spline_points_fine[:,0], label='x check')
+plt.legend()
 
 fig2 = plt.figure(2)
 ax3d = fig2.add_subplot(111, projection='3d')
@@ -125,9 +152,21 @@ fig2.show()
 plt.legend()
 
 fig3 = plt.figure()
-plt.scatter(range(len(diff_before)), diff_before, label='before')
-plt.scatter(range(len(diff_after)), diff_after, label='after')
+plt.scatter(range(len(diff_before_norm)), diff_before_norm, label='before')
+plt.scatter(range(len(diff_after_norm)), diff_after_norm, label='after')
 plt.legend()
+
+fig6 = plt.figure()
+plt.scatter(range(len(diff_before_norm_2d)), diff_before_norm_2d, label='2d before')
+plt.scatter(range(len(diff_after_norm_2d)), diff_after_norm_2d, label='2d after')
+plt.legend()
+
+fig5 = plt.figure()
+plt.scatter(range(np.shape(np.asarray(splint_geometry.pyramid_points))[0]), np.asarray(splint_geometry.pyramid_points)[:,0] - np.asarray(splint_ios_corrected.pyramid_points)[:,0], label='error x')
+plt.scatter(range(np.shape(np.asarray(splint_geometry.pyramid_points))[0]), np.asarray(splint_geometry.pyramid_points)[:,1] - np.asarray(splint_ios_corrected.pyramid_points)[:,1], label='error y')
+plt.scatter(range(np.shape(np.asarray(splint_geometry.pyramid_points))[0]), np.asarray(splint_geometry.pyramid_points)[:,2] - np.asarray(splint_ios_corrected.pyramid_points)[:,2], label='error z')
+plt.legend()
+
 plt.show()
 
 exit()
