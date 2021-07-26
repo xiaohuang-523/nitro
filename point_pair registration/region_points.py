@@ -86,6 +86,14 @@ def read_all():
     return sub_vertex
 
 
+def read_regions(file, voxel_size):
+    your_mesh = mesh.Mesh.from_file(file)
+    vertex = extract_vertex(your_mesh.points)
+    sub_vertex = np.asarray(pcm.preprocess_point_cloud(vertex, voxel_size))
+    print('shape of sub_vertex is', np.shape(sub_vertex))
+    return sub_vertex
+
+
 # print('shape of all vertex is', np.shape(all_vertex[0]))
 # fig1 = plt.figure()
 # ax = fig1.add_subplot(111, projection='3d')

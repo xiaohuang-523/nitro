@@ -21,7 +21,35 @@ def findInDict(needle,haystack):
 
 # creating a pdf file object
 file = "G:\\My Drive\\Project\\HW-9232 Registration method for edentulous\\Edentulous registration error analysis\\Case report\\Case Report #2128   Dr. Fish   2020-09-01 ( Plan-2 Drill-2 Guided-2 ).pdf"
+
+
+# Read tables in PDF (tabula-py)
+# http://theautomatic.net/2019/05/24/3-ways-to-scrape-tables-from-pdfs-with-python/
+# https://www.thepythoncode.com/article/extract-pdf-tables-in-python-camelot
+# https://www.java.com/en/download/help/windows_manual_download.html
+
+import tabula
+tables = tabula.read_pdf(file, pages = "all", multiple_tables = True)
+print(tables)
+
+exit()
+
+# Read tables in PDF (Camelot)
+# http://theautomatic.net/2019/05/24/3-ways-to-scrape-tables-from-pdfs-with-python/
+# https://www.thepythoncode.com/article/extract-pdf-tables-in-python-camelot
+import camelot
+
+tables = camelot.read_pdf(file)
+print(tables.n)
+
+exit()
+
+
+
 pdfFileObj = open(file, 'rb')
+
+
+
 
 # creating a pdf reader object
 pdfReader = PyPDF2.PdfFileReader(pdfFileObj)
