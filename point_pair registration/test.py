@@ -4,6 +4,7 @@ from matplotlib import cm
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 import PyPDF2
 import types
+import edentulous_arch
 
 
 def findInDict(needle,haystack):

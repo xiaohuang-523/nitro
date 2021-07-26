@@ -10,15 +10,15 @@ import random_points_3d
 import registration
 import statistics_analysis as sa
 import array_processing as ap
+import edentulous_arch
 
 
 def check_tre(targets, fiducials):
     # define number of trials, mean error and stdev
     tre_total = []
-    tre_1 = []
-    tre_2 = []
-    tre_3 = []
-    tre_4 = []
+    x_error = []
+    y_error = []
+    z_error = []
     original_fiducials = np.copy(fiducials)
     for i in range(N): # for each trial
         # generate noise on fiducials
@@ -47,42 +47,77 @@ def check_tre(targets, fiducials):
         targets_new = []
         if np.ndim(targets) == 1:
             targets_new = np.matmul(R, targets) + t
-            tre = np.asarray(targets_new) - targets
+            tre_tem = np.asarray(targets_new) - targets
             # print('tre vector is', tre)
-            tre = np.linalg.norm(tre)
+            tre = np.linalg.norm(tre_tem)
+            diff_z = tre_tem[2]
+            diff_x = tre_tem[0]
+            diff_y = tre_tem[1]
             # print('tre is', tre)
-            tre_total = np.append(tre_total, tre)
-            tre_sep = tre_total
+            tre_total.append(tre)
+            x_error.append(diff_x)
+            y_error.append(diff_y)
+            z_error.append(diff_z)
+            #tre_total = np.append(tre_total, tre)
+            #tre_sep = tre_total
             #value_95 = sa.fit_models_np_plot(tre_sep)
 
         else:
-            for target in targets:
+            tre_sep = []
+            x_error_sep = []
+            y_error_sep = []
+            z_error_sep = []
+            for i in range(len(targets)):
+                target = targets[i,:]
                 target_tem = np.matmul(R, target) + t
-                targets_new.append(target_tem)
+                tre_tem = target_tem - targets[i,:]
+                tre = np.linalg.norm(tre_tem)
+                diff_z = tre_tem[2]
+                diff_x = tre_tem[0]
+                diff_y = tre_tem[1]
+                x_error_sep.append(diff_x)
+                y_error_sep.append(diff_y)
+                z_error_sep.append(diff_z)
+                tre_sep.append(tre)
+            tre_total.append(tre_sep)
+            x_error.append(x_error_sep)
+            y_error.append(y_error_sep)
+            z_error.append(z_error_sep)
 
-                tre = np.asarray(targets_new) - targets
-        #print('tre vector is', tre)
-                tre = np.linalg.norm(tre, axis=1)
-        #print('tre is', tre)
-                tre_total = np.append(tre_total, tre)
-                tre_1.append(tre[0])
-                tre_2.append(tre[1])
-                tre_3.append(tre[2])
-                tre_4.append(tre[3])
-
+    tre_total = np.asarray(tre_total)
+    x_error = np.array(x_error)
+    y_error = np.array(y_error)
+    z_error = np.array(z_error)
+    print('shape of tre_total is', np.shape(tre_total))
 
     if np.ndim(targets) == 1:
-        tre_sep = tre_total
-        value_95, mean, std = sa.fit_models_np_plot_mean_std(tre_sep)
+        value_95, mean, std = sa.fit_models_np_plot_mean_std(tre_total)
         print('value 95 is', value_95)
         print('mean is', mean)
         print('std is', std)
     else:
         value_95 = []
-        tre_sep = [tre_1, tre_2, tre_3, tre_4]
+        value_95_x = []
+        value_95_y = []
+        value_95_z = []
         for j in range(len(targets)):
-            value = sa.fit_models_np_plot(tre_sep[j])
+            value = sa.fit_models_np_plot(tre_total[:, j])
             value_95.append(value)
+
+            value_x = sa.fit_models_np_plot_mean_std(x_error[:, j])
+            value_95_x.append(value_x[1])
+
+            value_y = sa.fit_models_np_plot_mean_std(y_error[:, j])
+            value_95_y.append(value_y[1])
+
+            value_z = sa.fit_models_np_plot_mean_std(z_error[:, j])
+            value_95_z.append(value_z[1])
+
+        print('value 95 is', value_95)
+        print('value 95 x is', value_95_x)
+        print('value 95 y is', value_95_y)
+        print('value 95 z is', value_95_z)
+    #exit()
     return value_95
 
 
@@ -164,107 +199,27 @@ if __name__ == "__main__":
     else:
         stl_file = 'full_arch.stl'
         print('read stl')
-        full_region = region_points.read_regions(stl_base + stl_file, voxel_size = 2.0)
+        full_region = region_points.read_regions(stl_base + stl_file, voxel_size = 1.0)
         Yomiwrite.write_csv_matrix(stl_base + 'full_arch.txt', full_region)
 
-    # convert to cylindrical coordinates [r, theta, z]
-    full_region_cylinder = coordinates.convert_cylindrical(full_region, [0, 0, 0])
-    print('point are', full_region_cylinder)
-
-    # generate target regions
-    # angle     [90:125:160]
-    # radius    12~16 (inner)  16~23 (occlusal) 23~39 (outer)
-    # z         [10:19.6:24]
-
-    ANGLE_RANGE = [90, 160]
-    RADIUS_RANGE = [16, 23]
-    HEIGHT_RANGE = [5, 34]
-
-    D_ANGLE = 2
-    D_HEIGHT = 1
-    D_RADIUS = 1
-    N_REGION =  2 * D_ANGLE * D_HEIGHT + D_ANGLE
-    print('total number of fiducials are', N_REGION)
-    all_regions = []
-    for i in range(N_REGION):
-        all_regions.append([])
-
-    for i in range(len(full_region_cylinder)):
-        x = divide_region(RADIUS_RANGE, ANGLE_RANGE, HEIGHT_RANGE, full_region_cylinder[i,:])
-        if x != -1:
-            all_regions[x-1].append(full_region[i,:])
-
-    fiducials_original = []
-    for region in all_regions:
-        center = np.sum(np.asarray(region), axis=0)/len(region)
-        fiducials_original.append(center)
-    fiducials_original = np.asarray(fiducials_original)
-
-    #
-    # # divide based on radius
-    # inner = []
-    # for i in range(D_ANGLE * D_HEIGHT):
-    #     inner.append([])
-    # occlusal = []
-    # for i in range(D_ANGLE):
-    #     occlusal.append([])
-    # outer = []
-    # for i in range(D_ANGLE * D_HEIGHT):
-    #     outer.append([])
-    # for i in range(len(full_region_cylinder)):
-    #     if full_region_cylinder[i,:][0] < 16:   # inner points
-    #         if 90 < full_region_cylinder[i,:][1] * 180 / np.pi < 125:
-    #             if full_region_cylinder[i,:][2] < 19.6:
-    #                 inner[0].append(full_region[i,:])
-    #             else:
-    #                 inner[1].append(full_region[i,:])
-    #         elif 125 <= full_region_cylinder[i,:][1] * 180 / np.pi < 160:
-    #             if full_region_cylinder[i, :][2] < 19.6:
-    #                 inner[2].append(full_region[i, :])
-    #             else:
-    #                 inner[3].append(full_region[i, :])
-    #     elif 16 <= full_region_cylinder[i,:][0] < 23:   # occlusal points
-    #         if 90 < full_region_cylinder[i,:][1] * 180 / np.pi < 125:
-    #             occlusal[0].append(full_region[i,:])
-    #         elif 125 <= full_region_cylinder[i, :][1] * 180 / np.pi < 160:
-    #             occlusal[1].append(full_region[i, :])
-    #     else:   # outer points
-    #         if 90 < full_region_cylinder[i,:][1] * 180 / np.pi < 125:
-    #             if full_region_cylinder[i,:][2] < 19.6:
-    #                 outer[0].append(full_region[i,:])
-    #             else:
-    #                 outer[1].append(full_region[i,:])
-    #         elif 125 <= full_region_cylinder[i, :][1] * 180 / np.pi < 160:
-    #             if full_region_cylinder[i, :][2] < 19.6:
-    #                 outer[2].append(full_region[i, :])
-    #             else:
-    #                 outer[3].append(full_region[i, :])
-    #
-    # for region in inner:
-    #     all_regions.append(region)
-    # for region in occlusal:
-    #     all_regions.append(region)
-    # for region in outer:
-    #     all_regions.append(region)
-
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # plot.plot_3d_points(np.asarray(inner[2]), ax, 'green')
-    # plot.plot_3d_points(np.asarray(occlusal[1]), ax, 'red')
-    # plot.plot_3d_points(np.asarray(outer[0]), ax, 'blue')
-    # plt.show()
-
-
-
-    # read target and define global variables
-    # read file for true fiducials and targets
     base = "G:\\My Drive\\Project\\HW-9232 Registration method for edentulous\\Edentulous registration error analysis\\Stage2_more_regions\\"
-    target_measurement_file = "1_target_5_fiducials.txt"
-    #target_measurement_file = "targets.txt"
+    target_measurement_file = "targets.txt"
     points = Yomiread.read_csv(base + target_measurement_file, 4, 10, flag=1)
-    #targets_original = points[:, 1:4]
-    targets_original = points[0, 1:4] + [0, 0, 4]
-    print('targets_original', targets_original)
+    targets_original = points[1:3, 1:4]
+
+    arch1 = edentulous_arch.Edentulous_arch(full_region, targets_original)
+    print('angle range is', arch1.target_angle_range)
+
+    D_ANGLE = 6
+    D_HEIGHT = 2
+    D_RADIUS = 1
+    arch1.divide_arch(D_RADIUS,D_ANGLE,D_HEIGHT, defined_radius_range=[17, 23], defined_angle_range= [10, 170], defined_height_range=[5, 34], check_for_target=1)
+    # defined_angle_range= [0, 180],
+    #print('fiducial number is', arch1.n_fiducial)
+    #print('default fiducials are', arch1.default_fiducial)
+
+    #exit()
+
     N = 5000
     BIAS_MEAN = 1.0
     BIAS_STDEV = 0.15
@@ -283,12 +238,14 @@ if __name__ == "__main__":
     BIAS_ERROR_FLAG = 0
     ORIENTATION = 1
 
+    print('registration')
+
     # solve TRE
-    for i in range(len(all_regions)):
+    for i in range(len(arch1.all_regions_cartesion)):
         value_95 = []
-        fiducials_new = np.copy(fiducials_original)
+        fiducials_new = np.copy(arch1.default_fiducial)
         mm = 0
-        for point in all_regions[i]:
+        for point in arch1.all_regions_cartesion[i]:
             print('checking point ', mm + 1)
             fiducials_new[i,:] = point
             #print('fiducials are ', fiducials_new)
@@ -321,6 +278,7 @@ if __name__ == "__main__":
         min_value_95.append(np.min(value_95))
         print('maximum 95% value is', max_value_95)
         print('minimum 95% value is', min_value_95)
+    #exit()
     #value_95, model = check_tre(targets_original, fiducials_original)
 
     #green_file = "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_green.txt"
@@ -331,9 +289,9 @@ if __name__ == "__main__":
     #Yomiwrite.write_csv_matrix(base + yellow_file, yellow_point)
     #Yomiwrite.write_csv_matrix(base + red_file, red_point)
 
-    for i in range(N_REGION):
-        Yomiwrite.write_csv_matrix(base+"Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_value_95_region_" + np.str(i+1) + ".txt", total_value_95[i])
-        Yomiwrite.write_csv_matrix(base + "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_points_region_" + np.str(i+1) + ".txt", all_regions[i])
+    #for i in range(N_REGION):
+    #    Yomiwrite.write_csv_matrix(base+"Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_value_95_region_" + np.str(i+1) + ".txt", total_value_95[i])
+    #    Yomiwrite.write_csv_matrix(base + "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_points_region_" + np.str(i+1) + ".txt", all_regions[i])
 
     fig1 = plt.figure()
     ax = fig1.add_subplot(111, projection='3d')
