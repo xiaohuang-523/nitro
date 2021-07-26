@@ -202,6 +202,51 @@ def solve_jacob(kdl, joint):
         jacobian = np.hstack((jacobian, col_tem))
     return jacobian[:,1:]
 
+
+def Yomi_parameters(T):
+    T_tem = np.copy(T)
+
+    #print('T_tem is', T_tem)
+    Rx = np.arctan2(T_tem[2,1],T_tem[2,2])
+    #if T[2,1]/np.sin(Rx) * T[2, 0] > 0:
+    #Ry = np.arccos(T[2,1]/np.sin(Rx)) - math.pi
+    Ry = np.arcsin(-T_tem[2,0])
+    # if T_tem[2,0] > 0 and T[2,1]/np.sin(Rx) > 0:
+    #     Ry = np.arcsin(T_tem[2,0])
+    # elif T_tem[2,0] > 0 and T[2,1]/np.sin(Rx) < 0:
+    #     Ry = np.arcsin(T_tem[2,0]) + math.pi
+    # elif T_tem[2,0] < 0 and T[2,1]/np.sin(Rx) > 0:
+    #     Ry = np.arcsin(T_tem[2, 0])
+    # elif T_tem[2,0] < 0 and T[2,1]/np.sin(Rx) < 0:
+    #     Ry = np.arcsin(T_tem[2,0]) + math.pi
+    # else:
+    #     Ry = np.arcsin(T_tem[2, 0])
+    #print('siny',-T_tem[2,0] )
+    #print('cosy', T[2,1]/np.sin(Rx))
+    #print('Ry is', Ry)
+    #Ry = np.arctan2((-T_tem[2,0]), (T[2,1]/np.sin(Rx)))
+    Rz = np.arctan2(T[1,0],T[0,0])
+    #print('angles are', Rx, Ry, Rz)
+    A = np.array([[np.cos(Ry)*np.cos(Rz), np.cos(Rz)*np.sin(Rx)*np.sin(Ry)- np.cos(Rx)*np.sin(Rz), np.cos(Rx)*np.cos(Rz)*np.sin(Ry)+np.sin(Rx)*np.sin(Rz)],
+                   [np.cos(Ry)*np.sin(Rz), np.cos(Rz)*np.cos(Rx)+ np.sin(Rz)*np.sin(Ry)*np.sin(Rx), -np.cos(Rz)*np.sin(Rx)+np.cos(Rx)*np.sin(Ry)*np.sin(Rz)],
+                   [-np.sin(Ry), np.cos(Ry)*np.sin(Rx), np.cos(Rx)*np.cos(Ry)]])
+
+    Tx = np.matmul(np.linalg.inv(A), T_tem[0:3,3])[0]
+    Ty = np.matmul(np.linalg.inv(A), T_tem[0:3,3])[1]
+    Tz = np.matmul(np.linalg.inv(A), T_tem[0:3,3])[2]
+
+    Link = np.array([Tx, Ty, Tz, Rz, Ry, Rx])
+    return Link
+
+
+def get_homo_matrix(v1, v2, v3, mean):
+    matrix = np.eye(4)
+    matrix[0:3, 0] = v1
+    matrix[0:3, 1] = v2
+    matrix[0:3, 2] = v3
+    matrix[0:3, 3] = mean
+    return matrix
+
 # This code is not working
 #def FW_Solve_DH(cal):
 #    cal_tem = np.copy(cal)

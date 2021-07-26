@@ -2,6 +2,7 @@ import jstyleson
 import numpy as np
 import pandas as pd
 import csv
+from copy import copy
 
 
 # Read Guide arm parameters from calibration file
@@ -88,26 +89,57 @@ def read_ball_measurements(fname):
 #     return bb_data_f
 
 # Parse csv files. Information: https://docs.python.org/3/library/csv.html
-def read_csv(fname, jnumber = 7, line_number = 50000):
+# flag = 0 will ignore the 1st row.
+def read_csv(fname, jnumber = 7, line_number = 50000, flag=1, delimiter = ","):
     bb_tem = np.zeros(jnumber)
     bb_data_t = np.zeros(jnumber)
-    flag = 0
+    #flag = 0
     count = 0
     with open(fname, newline='') as f:
-    #with open(fname, 'r') as f:
-        reader = csv.reader(f, delimiter=',')
-        #print('reader is', reader)
+        reader = csv.reader(f, delimiter=delimiter)
         for row in reader:
             count += 1
             if flag == 0:
                 flag = 1
             elif flag == 1:
                 for j in range(jnumber):
-                    bb_data_t[j] = np.fromstring(row[j], dtype=float, sep=',')
+                    bb_data_t[j] = np.fromstring(row[j], dtype=float, sep=delimiter)
                 bb_tem = np.vstack((bb_tem, bb_data_t))
-            if count == line_number:
+            if line_number != -1 and count == line_number:
                 break
     bb_data_f = bb_tem[1:, :]
+    return bb_data_f
+
+
+def read_csv_D_type(fname, jnumber = 7, line_number = 50000, flag=1, delimiter = ","):
+    bb_tem = []
+    bb_data_t = np.zeros(jnumber)
+    count = 0
+    with open(fname, 'r', newline='') as f:
+        reader = csv.reader(f, delimiter=delimiter)
+        for row in reader:
+            data_tem = []
+            count += 1
+            if flag == 0:
+                flag = 1
+            elif flag == 1:
+                for j in range(jnumber):
+                    string_tem = row[j].split('D')
+                    print('string_tem is', string_tem)
+                    if len(string_tem) == 1:
+                        value = float(string_tem[0])
+                    elif len(string_tem) == 2:
+                        value_base = float(string_tem[0])
+                        value_power = float(string_tem[1])
+                        value = value_base * np.power(10, value_power)
+                        print('value is', value)
+                    else:
+                        raise ValueError('input file is not in a compact format')
+                    data_tem.append(value)
+                bb_tem.append(data_tem)
+            if line_number != -1 and count == line_number:
+                break
+    bb_data_f = np.asarray(bb_tem)[:,1:4]
     return bb_data_f
 
 
@@ -262,8 +294,35 @@ def readLog_JointAngle_FnP(log_file_path, startLine, endLine, UDP_array_length =
     return QRA, QRA_time, QRD, QRD_time, UDPA, UDPD
 
 
+def readLog_Current_FnP(log_file_path, startLine, endLine, UDP_array_length = 20):
+    log_file = open(log_file_path, 'r')
+    FILE = log_file.readlines()
+
+    UDPA_time_list = []
+    UDPA_list = []
+    UDPA = np.zeros(UDP_array_length)
+
+    # use the last line if endLine = -1
+    if endLine == -1:
+        endLine = len(FILE)
+    else:
+        endLine = endLine
+
+    for line in range(startLine,endLine):
+        if "received UDP response" in FILE[line]:
+            UDPA_list.append(FILE[line][72:])
+            UDPA_time_list.append(FILE[line][11:24])
+
+    for i in range(len(UDPA_list)):
+        UDPA_data_t = np.fromstring(UDPA_list[i], dtype=float, sep=',')
+        UDPA = np.vstack((UDPA, UDPA_data_t))
+    UDPA = UDPA[1:, :]
+
+    return UDPA
+
+
 # Read log file
-def readLog_JointAngle_with_idx(log_file_path, startLine, endLine):
+def readLog_JointAngle_with_idx(log_file_path, startLine=0, endLine=-1):
     log_file = open(log_file_path, 'r')
     FILE = log_file.readlines()
     QRA_time_list = []
@@ -278,6 +337,8 @@ def readLog_JointAngle_with_idx(log_file_path, startLine, endLine):
     QRD_time = []
     QRA_idx = []
     QRD_idx = []
+    if endLine == -1:
+        endLine = len(FILE)
     for line in range(startLine,endLine):
         if "QRA" in FILE[line]:
             QRA_list.append(FILE[line][65:])
@@ -390,6 +451,29 @@ def readLog_ga(log_file_path):
     else:
         print('Error, schunk_kdl is not found, please check file')
     return kdl
+
+
+# Read log file check joint angles in HEC
+def readLog_HEC_angles(log_file_path):
+    log_file = open(log_file_path, 'r')
+    FILE = log_file.readlines()
+    ga_angles = []
+    pt_angles = []
+    ga_line = []
+    pt_line = []
+    for line in range(len(FILE)):
+        if "Guidearm angles:" in FILE[line]:
+            str = FILE[line][91:-1]
+            ga = np.fromstring(str, dtype=float, sep=',')
+            ga_angles.append(ga)
+        if "Tracker angles:" in FILE[line]:
+            str = FILE[line][89:-1]
+            pt = np.fromstring(str, dtype=float, sep=',')
+            pt_angles.append(pt)
+    return np.asarray(ga_angles), np.asarray(pt_angles)
+
+
+
 
 
 # Read log file check dfc
@@ -554,3 +638,126 @@ def read_barset(file):
     barlength[1] = mb
     barlength[2] = lb
     return barlength
+
+
+# read faro measurements
+def read_faro_ios_splint_measurement(file):
+    log_file = open(file, 'r')
+    FILE = log_file.readlines()
+    n_sphere = 3
+    n_plane = 5
+    n_point = 1
+    sphere = [[] for i in range(n_sphere)]
+    sphere_label = [[] for i in range(n_sphere)]
+    plane = [[] for i in range(n_plane)]
+    plane_label = [[] for i in range(n_plane)]
+    point = [[] for i in range(n_point)]
+    point_label = [[] for i in range(n_point)]
+    for line in range(len(FILE)):
+        if "Sphere" in FILE[line]:
+            string = FILE[line]
+            string_sep = string.split(';')
+            number = np.int(FILE[line][7])
+            sphere[number-1].append(np.float(string_sep[2]))
+            sphere_label[number-1].append(string_sep[1])
+        if "Plane" in FILE[line]:
+            string = FILE[line]
+            string_sep = string.split(';')
+            number = np.int(FILE[line][6])
+            plane[number - 1].append(np.float(string_sep[2]))
+            plane_label[number - 1].append(string_sep[1])
+        if "Point " in FILE[line]:
+            string = FILE[line]
+            string_sep = string.split(';')
+            number = np.int(FILE[line][6])
+            point[number - 1].append(np.float(string_sep[2]))
+            point_label[number - 1].append(string_sep[1])
+
+    output_label = ['output_label', 'sphere', 'sphere_label', 'plane', 'plane_label', 'point', 'point_label']
+    return [output_label, sphere, sphere_label, plane, plane_label, point, point_label]
+
+
+# for IOS drill demo implant calculation
+def read_faro_ios_implant_measurement(file):
+    log_file = open(file, 'r')
+    FILE = log_file.readlines()
+    n_sphere = 3
+    n_plane = 1
+    n_point = 1
+    n_cylinder = 1
+    n_pin = 1
+    sphere = [[] for i in range(n_sphere)]
+    sphere_label = [[] for i in range(n_sphere)]
+    plane = [[] for i in range(n_plane)]
+    plane_label = [[] for i in range(n_plane)]
+    point = [[] for i in range(n_point)]
+    point_label = [[] for i in range(n_point)]
+    cylinder = [[] for i in range(n_cylinder)]
+    cylinder_label = [[] for i in range(n_cylinder)]
+    pin = [[] for i in range(n_pin)]
+    pin_label = [[] for i in range(n_pin)]
+
+    for line in range(len(FILE)):
+        if "Sphere" in FILE[line]:
+            string = FILE[line]
+            string_sep = string.split(';')
+            number = np.int(FILE[line][7])
+            sphere[number-1].append(np.float(string_sep[2]))
+            sphere_label[number-1].append(string_sep[1])
+        if "Plane" in FILE[line]:
+            string = FILE[line]
+            string_sep = string.split(';')
+            number = np.int(FILE[line][6])
+            plane[number - 4].append(np.float(string_sep[2]))
+            plane_label[number - 4].append(string_sep[1])
+        if "Point " in FILE[line]:
+            string = FILE[line]
+            string_sep = string.split(';')
+            number = np.int(FILE[line][6])
+            point[number - 1].append(np.float(string_sep[2]))
+            point_label[number - 1].append(string_sep[1])
+        if "Cylinder " in FILE[line]:
+            string = FILE[line]
+            string_sep = string.split(';')
+            number = np.int(FILE[line][9])
+            cylinder[number - 1].append(np.float(string_sep[2]))
+            cylinder_label[number - 1].append(string_sep[1])
+        if "PinLength " in FILE[line]:
+            string = FILE[line]
+            string_sep = string.split(';')
+            number = np.int(FILE[line][10])
+            pin[number - 1].append(np.float(string_sep[2]))
+            pin_label[number - 1].append(string_sep[1])
+
+    output_label = ['output_label', 'sphere', 'sphere_label', 'plane', 'plane_label', 'point', 'point_label', 'cylinder', 'cylinder_label', 'pin', 'pin_label']
+    return [output_label, sphere, sphere_label, plane, plane_label, point, point_label, cylinder, cylinder_label, pin, pin_label]
+
+# read neok log file in general
+def read_neok_log(log_file_path, startLine, endLine, keyword = 'QRA',  startidx =65):
+    log_file = open(log_file_path, 'r')
+    FILE = log_file.readlines()
+    time_list = []
+    list = []
+    data = []
+    time = []
+    # use the last line if endLine = -1
+    if endLine == -1:
+        endLine = len(FILE) - 100
+    else:
+        endLine = endLine
+
+    for line in range(startLine,endLine):
+        if keyword in FILE[line]:
+            list.append(FILE[line][startidx:])
+            time_list.append(FILE[line][11:24])
+
+    for j in range(len(list)):
+        data_tem = np.fromstring(list[j], dtype=float, sep=',')
+        data.append(data_tem)
+    data = np.asarray(data)
+
+    for l in range(len(time_list)):
+        h, m, s = time_list[l].split(':')
+        time.append(int(h) * 3600 + int(m) * 60 + float(s))
+
+    return data, time

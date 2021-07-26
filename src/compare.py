@@ -105,11 +105,15 @@ def comp_kdl(kdl1, kdl2, pose_list):
 
 
 # Compare two transformation matrix (4 by 4)
-def comp_mtx(mtx1, mtx2):
-    mtx1 = Yomikin.Yomi_Base_Matrix(mtx1)
-    mtx2 = Yomikin.Yomi_Base_Matrix(mtx2)
-    mtx1 = np.reshape(mtx1, (4, 4))
-    mtx2 = np.reshape(mtx2, (4, 4))
+def comp_mtx(mtx1, mtx2, yomi_format_flag = 1):
+    if yomi_format_flag == 1:
+        mtx1 = Yomikin.Yomi_Base_Matrix(mtx1)
+        mtx2 = Yomikin.Yomi_Base_Matrix(mtx2)
+        mtx1 = np.reshape(mtx1, (4, 4))
+        mtx2 = np.reshape(mtx2, (4, 4))
+    else:
+        mtx1 = mtx1
+        mtx2 = mtx2
     p1 = mtx1[0:3,3]
     p2 = mtx2[0:3,3]
     x1_vec = mtx1[0:3, 0]
@@ -123,16 +127,22 @@ def comp_mtx(mtx1, mtx2):
 
 # Compare the rotation part of the two transformation matrix
 # Get the misorientation of two rotation matrices
-def comp_mtx_misori(mtx1, mtx2):
-    mtx1 = Yomikin.Yomi_Base_Matrix(mtx1)
-    mtx2 = Yomikin.Yomi_Base_Matrix(mtx2)
-    mtx1 = np.reshape(mtx1, (4, 4))
-    mtx2 = np.reshape(mtx2, (4, 4))
+def comp_mtx_misori(mtx1, mtx2, yomi_format_flag = 1):
+    if yomi_format_flag == 1:
+        mtx1 = Yomikin.Yomi_Base_Matrix(mtx1)
+        mtx2 = Yomikin.Yomi_Base_Matrix(mtx2)
+        mtx1 = np.reshape(mtx1, (4, 4))
+        mtx2 = np.reshape(mtx2, (4, 4))
+    else:
+        mtx1 = mtx1
+        mtx2 = mtx2
     rot1 = mtx1[0:3,0:3]
     rot2 = mtx2[0:3,0:3]
     # the difference between two rotation matrices can be computed as rot1 * (rot2)^(-1)
     # reference: https://en.wikipedia.org/wiki/Misorientation
     delta_rot = np.matmul(rot1, np.linalg.inv(rot2))
-    return delta_rot
+    cos_theta = (delta_rot[0,0] + delta_rot[1,1] + delta_rot[2,2] - 1)/2
+    theta = np.arccos(cos_theta) * 180/np.pi
+    return theta
 
 

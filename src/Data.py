@@ -859,7 +859,7 @@ joint_s3_Matteo_1 = Yomiread.read_calibration_measurements(path_s3_Matteo_1)[:, 
 joint_cup_Matteo_1 = Yomiread.read_calibration_measurements(path_cup_Matteo_1)[:, 6:13]
 
 path_poses = "C:\\Calibration3\\TrackerPostures.csv"
-joint_poses =  Yomiread.read_csv(path_poses)
+joint_poses =  Yomiread.read_csv(path_poses, flag=0)
 #print('joint_poses are', joint_poses[1,:])
 
 path_Yomi_Good = "C:\\Calibration4\\YomiSettings_Blue.json"

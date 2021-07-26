@@ -10,6 +10,10 @@ import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d as plt3d
 from mpl_toolkits.mplot3d import Axes3D
 import plotly.graph_objects as go
+from matplotlib import cm
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+
+
 
 # Introduction on use
 # 1. plot_kdl(joint, kdl, fig, arm_type_str)
@@ -41,6 +45,9 @@ import plotly.graph_objects as go
 # In case of re-scaling the axes, modify the corresponding values in the function.
 # The FK is solved by Yomi convention. Convert models to yomi convention before use.
 
+# matplotlib.pyplot Explanation
+# plt.scatter attribute: https://stackoverflow.com/questions/14827650/pyplot-scatter-plot-marker-size
+# plt.scatter( horizontal, vertical, color = '', s=, )
 
 
 def plot_fk(joint, kdl, fig, arm_type_str):
@@ -376,3 +383,65 @@ def plot_radar_single_modify(categories, data, data_str):
         showlegend=True
     )
     fig.show()
+
+
+def plot_3d_points(points, ax, color, alpha=1):
+    #ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(points[:,0], points[:,1], points[:,2], zdir='z', s=20, alpha=alpha, c=color,
+               rasterized=True)
+    # Set up the axes limits
+    #ax.axes.set_xlim3d(left=-0.3999999, right=0.3999999)
+    #ax.axes.set_ylim3d(bottom=-0.3999999, top=0.3999999)
+    #ax.axes.set_zlim3d(bottom=-0.3999999, top=0.3999999)
+
+    # Create axes labels
+    ax.set_xlabel('X(mm)')
+    ax.set_ylabel('Y(mm)')
+    ax.set_zlabel('Z(mm)')
+
+
+def plot_3d_points_cylindrical(points, ax, color, alpha=1):
+    #ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(points[:,0], points[:,1], points[:,2], zdir='z', s=20, alpha=alpha, c=color,
+               rasterized=True)
+    # Set up the axes limits
+    #ax.axes.set_xlim3d(left=-0.3999999, right=0.3999999)
+    #ax.axes.set_ylim3d(bottom=-0.3999999, top=0.3999999)
+    #ax.axes.set_zlim3d(bottom=-0.3999999, top=0.3999999)
+
+    # Create axes labels
+    ax.set_xlabel('X(mm)')
+    ax.set_ylabel('Y(mm)')
+    ax.set_zlabel('Z(mm)')
+
+
+def plot_3d_points_color_map(points, value_95, ax, alpha=1):
+    # define coplor map
+    map = cm.get_cmap('gist_ncar', 512)
+    print(map(range(12)))
+    # default value [ 0.25 : 0.90 ]
+    newcmp = ListedColormap(map(np.linspace(0.25, 0.90, 512)))
+    print('value_95 is', value_95)
+
+    # plot using the defined colormap, return figure for showing color bar
+    figure = ax.scatter(points[:,0], points[:,1], points[:,2], zdir='z', s=20, alpha=alpha, c=value_95, cmap=newcmp,
+               rasterized=True)
+    # Set up the axes limits
+    #ax.axes.set_xlim3d(left=-0.3999999, right=0.3999999)
+    #ax.axes.set_ylim3d(bottom=-0.3999999, top=0.3999999)
+    #ax.axes.set_zlim3d(bottom=-0.3999999, top=0.3999999)
+
+    #plt.scatter(x, y, c=t, cmap=cm.colormap_name)
+
+    # Create axes labels
+    ax.set_xlabel('X(mm)')
+    ax.set_ylabel('Y(mm)')
+    ax.set_zlabel('Z(mm)')
+    return figure
+
+
+from matplotlib import cm
+# https://matplotlib.org/stable/tutorials/colors/colormaps.html
+# https://matplotlib.org/3.1.1/tutorials/colors/colormap-manipulation.html
+def color_map():
+    map = cm.get_cmap('gist_ncar', 12)
