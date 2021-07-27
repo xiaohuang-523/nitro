@@ -88,7 +88,6 @@ def check_tre(targets, fiducials):
     x_error = np.array(x_error)
     y_error = np.array(y_error)
     z_error = np.array(z_error)
-    print('shape of tre_total is', np.shape(tre_total))
 
     if np.ndim(targets) == 1:
         value_95, mean, std = sa.fit_models_np_plot_mean_std(tre_total)
@@ -105,20 +104,20 @@ def check_tre(targets, fiducials):
             value_95.append(value)
 
             value_x = sa.fit_models_np_plot_mean_std(x_error[:, j])
-            value_95_x.append(value_x[1])
+            value_95_x.append(value_x[0])
 
             value_y = sa.fit_models_np_plot_mean_std(y_error[:, j])
-            value_95_y.append(value_y[1])
+            value_95_y.append(value_y[0])
 
             value_z = sa.fit_models_np_plot_mean_std(z_error[:, j])
-            value_95_z.append(value_z[1])
+            value_95_z.append(value_z[0])
 
         print('value 95 is', value_95)
         print('value 95 x is', value_95_x)
         print('value 95 y is', value_95_y)
         print('value 95 z is', value_95_z)
     #exit()
-    return value_95
+    return value_95, value_95_x, value_95_y, value_95_z
 
 
 # dynamic grouping
@@ -199,22 +198,30 @@ if __name__ == "__main__":
     else:
         stl_file = 'full_arch.stl'
         print('read stl')
-        full_region = region_points.read_regions(stl_base + stl_file, voxel_size = 1.0)
+        full_region = region_points.read_regions(stl_base + stl_file, voxel_size = 0.05)
         Yomiwrite.write_csv_matrix(stl_base + 'full_arch.txt', full_region)
 
     base = "G:\\My Drive\\Project\\HW-9232 Registration method for edentulous\\Edentulous registration error analysis\\Stage2_more_regions\\"
     target_measurement_file = "targets.txt"
     points = Yomiread.read_csv(base + target_measurement_file, 4, 10, flag=1)
-    targets_original = points[1:3, 1:4]
+    targets_original = points[0:4, 1:4]
 
     arch1 = edentulous_arch.Edentulous_arch(full_region, targets_original)
     print('angle range is', arch1.target_angle_range)
 
     D_ANGLE = 6
-    D_HEIGHT = 2
+    D_HEIGHT = 1
     D_RADIUS = 1
-    arch1.divide_arch(D_RADIUS,D_ANGLE,D_HEIGHT, defined_radius_range=[17, 23], defined_angle_range= [10, 170], defined_height_range=[5, 34], check_for_target=1)
+    #arch1.divide_arch(D_RADIUS,D_ANGLE,D_HEIGHT, defined_radius_range=[17, 23], defined_angle_range= [0, 180], defined_height_range=[5, 34], check_for_target=1)
     # defined_angle_range= [0, 180],
+
+    # individual target range [radius], [height]
+    target1_range = [[18.88, 25.27], [18, 26]]
+    target2_range = [[17, 23], [14, 24.5]]
+    target3_range = [[17, 23], [14, 24.5]]
+    target4_range = [[17.46, 23.8], [17, 26]]
+    individual_range = [target1_range, target2_range, target3_range, target4_range]
+    arch1.divide_arch_individual_target(D_RADIUS, D_ANGLE, D_HEIGHT, defined_angle_range=[0, 180], individual_defined_range=individual_range)
     #print('fiducial number is', arch1.n_fiducial)
     #print('default fiducials are', arch1.default_fiducial)
 
@@ -234,6 +241,12 @@ if __name__ == "__main__":
     max_value_95 = []
     min_value_95 = []
     total_value_95 = []
+    total_value_95_x = []
+    total_value_95_y = []
+    total_value_95_z = []
+    max_x = []
+    max_y = []
+    max_z = []
 
     BIAS_ERROR_FLAG = 0
     ORIENTATION = 1
@@ -243,14 +256,20 @@ if __name__ == "__main__":
     # solve TRE
     for i in range(len(arch1.all_regions_cartesion)):
         value_95 = []
+        value_95_x = []
+        value_95_y = []
+        value_95_z = []
         fiducials_new = np.copy(arch1.default_fiducial)
         mm = 0
         for point in arch1.all_regions_cartesion[i]:
             print('checking point ', mm + 1)
             fiducials_new[i,:] = point
             #print('fiducials are ', fiducials_new)
-            value_95_tem = check_tre(targets_original, fiducials_new)
+            value_95_tem, value_95_x_tem, value_95_y_tem, value_95_z_tem = check_tre(targets_original, fiducials_new)
             value_95.append(value_95_tem)
+            value_95_x.append(value_95_x_tem)
+            value_95_y.append(value_95_y_tem)
+            value_95_z.append(value_95_z_tem)
             if np.ndim(targets_original) == 1:
                 if (value_95_tem < THRESHOLD_0):
                     green_point.append(point)
@@ -274,10 +293,18 @@ if __name__ == "__main__":
                     print('red shape', np.shape(red_point))
             mm += 1
         total_value_95.append(value_95)
-        max_value_95.append(np.max(value_95))
-        min_value_95.append(np.min(value_95))
+        total_value_95_x.append(value_95_x)
+        total_value_95_y.append(value_95_y)
+        total_value_95_z.append(value_95_z)
+
+        max_value_95.append(np.max(value_95, axis=0))
+        min_value_95.append(np.min(value_95, axis=0))
         print('maximum 95% value is', max_value_95)
         print('minimum 95% value is', min_value_95)
+
+        max_x.append(np.max(value_95_x, axis=0))
+        max_y.append(np.max(value_95_y, axis=0))
+        max_z.append(np.max(value_95_z, axis=0))
     #exit()
     #value_95, model = check_tre(targets_original, fiducials_original)
 
@@ -289,9 +316,20 @@ if __name__ == "__main__":
     #Yomiwrite.write_csv_matrix(base + yellow_file, yellow_point)
     #Yomiwrite.write_csv_matrix(base + red_file, red_point)
 
-    #for i in range(N_REGION):
-    #    Yomiwrite.write_csv_matrix(base+"Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_value_95_region_" + np.str(i+1) + ".txt", total_value_95[i])
-    #    Yomiwrite.write_csv_matrix(base + "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_points_region_" + np.str(i+1) + ".txt", all_regions[i])
+    N_REGION = arch1.n_fiducial
+    all_regions = arch1.all_regions_cartesion
+    for i in range(N_REGION):
+        Yomiwrite.write_csv_matrix(base+"Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_value_95_region_" + np.str(i+1) + ".txt", total_value_95[i])
+        Yomiwrite.write_csv_matrix(base + "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_points_region_" + np.str(i+1) + ".txt", all_regions[i])
+        Yomiwrite.write_csv_matrix(
+            base + "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(
+                BIAS_MEAN) + "_bias_tolerance_x_error_" + np.str(i + 1) + ".txt", total_value_95_x[i])
+        Yomiwrite.write_csv_matrix(
+            base + "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(
+                BIAS_MEAN) + "_bias_tolerance_y_error_" + np.str(i + 1) + ".txt", total_value_95_y[i])
+        Yomiwrite.write_csv_matrix(
+            base + "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(
+                BIAS_MEAN) + "_bias_tolerance_z_error_" + np.str(i + 1) + ".txt", total_value_95_z[i])
 
     fig1 = plt.figure()
     ax = fig1.add_subplot(111, projection='3d')
