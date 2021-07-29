@@ -1,3 +1,8 @@
+# Point-pair registration script
+# Fiducials are placed on inner, outer and occlusal gingiva surfaces
+# Script is used to generate the results reported in Jira task: https://neocis.atlassian.net/browse/HW-9541
+# by Xiao Huang @ 07/29/2021
+
 import coordinates
 import numpy as np
 import region_points
@@ -11,11 +16,14 @@ import registration
 import statistics_analysis as sa
 import array_processing as ap
 import edentulous_arch
+import compare
 
 
 def check_tre(targets, fiducials):
     # define number of trials, mean error and stdev
     tre_total = []
+    tre_ang_total = []
+    tre_trans_total = []
     x_error = []
     y_error = []
     z_error = []
@@ -24,7 +32,6 @@ def check_tre(targets, fiducials):
         # generate noise on fiducials
         fiducials_new = []
         # add biased errors
-        #print('loop', i)
         if BIAS_ERROR_FLAG == 1:
             center = np.array([-0.154, 0, 0])
             if ORIENTATION == 1:
@@ -48,6 +55,8 @@ def check_tre(targets, fiducials):
         if np.ndim(targets) == 1:
             targets_new = np.matmul(R, targets) + t
             tre_tem = np.asarray(targets_new) - targets
+            angle_err = np.matmul(R, [0, 0, 1])
+            print('angle_err is', angle_err)
             # print('tre vector is', tre)
             tre = np.linalg.norm(tre_tem)
             diff_z = tre_tem[2]
@@ -58,18 +67,19 @@ def check_tre(targets, fiducials):
             x_error.append(diff_x)
             y_error.append(diff_y)
             z_error.append(diff_z)
-            #tre_total = np.append(tre_total, tre)
-            #tre_sep = tre_total
-            #value_95 = sa.fit_models_np_plot(tre_sep)
 
         else:
             tre_sep = []
+            tre_ang_sep = []
+            tre_trans_sep = []
             x_error_sep = []
             y_error_sep = []
             z_error_sep = []
             for i in range(len(targets)):
                 target = targets[i,:]
                 target_tem = np.matmul(R, target) + t
+                angle_err = compare.comp_rot_misori(R, np.eye(3))
+                trans_err = np.linalg.norm(t)
                 tre_tem = target_tem - targets[i,:]
                 tre = np.linalg.norm(tre_tem)
                 diff_z = tre_tem[2]
@@ -79,12 +89,18 @@ def check_tre(targets, fiducials):
                 y_error_sep.append(diff_y)
                 z_error_sep.append(diff_z)
                 tre_sep.append(tre)
+                tre_ang_sep.append(angle_err)
+                tre_trans_sep.append(trans_err)
             tre_total.append(tre_sep)
+            tre_ang_total.append(tre_ang_sep)
+            tre_trans_total.append(tre_trans_sep)
             x_error.append(x_error_sep)
             y_error.append(y_error_sep)
             z_error.append(z_error_sep)
 
     tre_total = np.asarray(tre_total)
+    tre_ang_total = np.asarray(tre_ang_total)
+    tre_trans_total = np.asarray(tre_trans_total)
     x_error = np.array(x_error)
     y_error = np.array(y_error)
     z_error = np.array(z_error)
@@ -96,12 +112,20 @@ def check_tre(targets, fiducials):
         print('std is', std)
     else:
         value_95 = []
+        value_95_ang = []
+        value_95_trans = []
         value_95_x = []
         value_95_y = []
         value_95_z = []
         for j in range(len(targets)):
             value = sa.fit_models_np_plot(tre_total[:, j])
             value_95.append(value)
+
+            value_ang = sa.fit_models_np_plot(tre_ang_total[:,j])
+            value_95_ang.append(value_ang)
+
+            value_trans = sa.fit_models_np_plot(tre_trans_total[:,j])
+            value_95_trans.append(value_trans)
 
             value_x = sa.fit_models_np_plot_mean_std(x_error[:, j])
             value_95_x.append(value_x[0])
@@ -111,12 +135,12 @@ def check_tre(targets, fiducials):
 
             value_z = sa.fit_models_np_plot_mean_std(z_error[:, j])
             value_95_z.append(value_z[0])
-
         print('value 95 is', value_95)
+        print('value 95 angle is', value_95_ang)
+        print('value 95 trans is', value_95_trans)
         print('value 95 x is', value_95_x)
         print('value 95 y is', value_95_y)
         print('value 95 z is', value_95_z)
-    #exit()
     return value_95, value_95_x, value_95_y, value_95_z
 
 
@@ -127,23 +151,20 @@ def check_tre(targets, fiducials):
 #       occlusal:   theta_regions
 #
 # result is region_number which starts from 1
-def divide_region( radius_range, angle_range, z_range, point):
+def divide_region(radius_range, angle_range, z_range, point):
     delta_angle = (angle_range[1] - angle_range[0]) / D_ANGLE
     delta_height = (z_range[1] - z_range[0]) / D_HEIGHT
     delta_radius = (radius_range[1] - radius_range[0]) / D_RADIUS
     angle_array = []
     for i in range(D_ANGLE):
-        #print('angle', i)
         angle_array.append(angle_range[0] + i * delta_angle)
     angle_array.append(angle_range[1])
     radius_array = []
     for i in range(D_RADIUS):
-        #print('radius', i)
         radius_array.append(radius_range[0] + i * delta_radius)
     radius_array.append(radius_range[1])
     height_array = []
     for i in range(D_HEIGHT):
-        #print('height', i)
         height_array.append(z_range[0] + i * delta_height)
     height_array.append(z_range[1])
 
@@ -174,22 +195,12 @@ def divide_region( radius_range, angle_range, z_range, point):
     else: # outer
         if 0 < theta_idx <= D_ANGLE and 0 < z_idx <= D_HEIGHT:
             region_number = D_ANGLE * D_HEIGHT + D_ANGLE + (theta_idx - 1) * D_HEIGHT + z_idx
-
     return region_number
-
-    #
-    #
-    # print('r_idx is', r_idx)
-    # print('theta_idx is', theta_idx)
-    # print('z_idx is', z_idx)
-    #
-    # print('angle array is', angle_array)
-    # print('radius array is', radius_array)
-    # print('height array is', height_array)
 
 
 if __name__ == "__main__":
-    stl_base = "G:\\My Drive\\Project\\HW-9232 Registration method for edentulous\\Edentulous registration error analysis\\Typodont_scan\\Edentulous_scan\\"
+    stl_base = "G:\\My Drive\\Project\\HW-9232 Registration method for edentulous" \
+               "\\Edentulous registration error analysis\\Typodont_scan\\Edentulous_scan\\"
     all_regions = []
     file = stl_base + 'full_arch.txt'
     if os.path.isfile(file):
@@ -201,36 +212,76 @@ if __name__ == "__main__":
         full_region = region_points.read_regions(stl_base + stl_file, voxel_size = 0.05)
         Yomiwrite.write_csv_matrix(stl_base + 'full_arch.txt', full_region)
 
-    base = "G:\\My Drive\\Project\\HW-9232 Registration method for edentulous\\Edentulous registration error analysis\\Stage2_more_regions\\"
+    base = "G:\\My Drive\\Project\\HW-9232 Registration method for edentulous" \
+           "\\Edentulous registration error analysis\\Stage2_more_regions\\"
     target_measurement_file = "targets.txt"
     points = Yomiread.read_csv(base + target_measurement_file, 4, 10, flag=1)
     targets_original = points[0:4, 1:4]
 
     arch1 = edentulous_arch.Edentulous_arch(full_region, targets_original)
     print('angle range is', arch1.target_angle_range)
+    print('target position is', arch1.target_origins_cylindrical[:,1]*180/np.pi)
 
-    D_ANGLE = 6
+    # Set up simulation conditions
+    D_ANGLE = 3
     D_HEIGHT = 1
     D_RADIUS = 1
-    #arch1.divide_arch(D_RADIUS,D_ANGLE,D_HEIGHT, defined_radius_range=[17, 23], defined_angle_range= [0, 180], defined_height_range=[5, 34], check_for_target=1)
-    # defined_angle_range= [0, 180],
 
-    # individual target range [radius], [height]
-    target1_range = [[18.88, 25.27], [18, 26]]
-    target2_range = [[17, 23], [14, 24.5]]
-    target3_range = [[17, 23], [14, 24.5]]
-    target4_range = [[17.46, 23.8], [17, 26]]
-    individual_range = [target1_range, target2_range, target3_range, target4_range]
-    arch1.divide_arch_individual_target(D_RADIUS, D_ANGLE, D_HEIGHT, defined_angle_range=[0, 180], individual_defined_range=individual_range)
-    #print('fiducial number is', arch1.n_fiducial)
-    #print('default fiducials are', arch1.default_fiducial)
+    # Select single target or multiple targets simulations (0: single target, 1: multiple targets)
+    simulation_flag = 0
+    # Define configurations
+    configuration = 1
+    angle_span = 20
+    offset_flag = 0
+    location_offset = 15
 
-    #exit()
+    # Single Target Simulation
+    if simulation_flag == 0:
+        arch1.divide_arch(D_RADIUS, D_ANGLE, D_HEIGHT, defined_radius_range=[17, 23], defined_angle_range=[0, 180],
+                          defined_height_range=[5, 34], check_for_target=1)
+    # Multiple Target Simulation
+    if simulation_flag == 1:
+        # Configuration I
+        if configuration == 1:
+            target1_range = [[18.88, 25.27], [18, 26]]
+            target2_range = [[17, 23], [14, 24.5]]
+            target3_range = [[17, 23], [14, 24.5]]
+            target4_range = [[17.46, 23.8], [17, 26]]
+            individual_range = [target1_range, target2_range, target3_range, target4_range]
+            arch1.divide_arch_individual_target(D_RADIUS, D_ANGLE, D_HEIGHT, defined_angle_range=[0, 180],
+                                                individual_defined_range=individual_range)
+        # Configuration II
+        if configuration == 2:
+            target1_range_ma = [[18.88, 25.27], [18, 26], angle_span]
+            target2_range_ma = [[17, 23], [14, 24.5], angle_span]
+            target3_range_ma = [[17, 23], [14, 24.5], angle_span]
+            target4_range_ma = [[17.46, 23.8], [17, 26], angle_span]
+            individual_range_modified_angle = [target1_range_ma, target2_range_ma, target3_range_ma, target4_range_ma]
 
+            if offset_flag == 0:
+                arch1.divide_arch_individual_target_modified_angle(D_RADIUS, D_ANGLE, D_HEIGHT,
+                                                            individual_defined_range=individual_range_modified_angle)
+            if offset_flag == 1:
+                arch1.divide_arch_individual_target_modified_angle_with_offset(D_RADIUS, D_ANGLE, D_HEIGHT,
+                                                            individual_defined_range=individual_range_modified_angle,
+                                                            location_offset = 15)
+        # Configuration III
+        target1_range_seg = [[24, 29.5], [18, 27], angle_span]
+        target2_range_seg = [[17, 23], [14, 24.5], angle_span]
+        target3_range_seg = [[17, 23], [14, 24.5], angle_span]
+        target4_range_seg = [[17, 23], [14, 24.5], angle_span]
+        target5_range_seg = [[22, 29], [17, 26], angle_span]
+        individual_range_modified_angle_seg = [target1_range_seg, target2_range_seg, target3_range_seg,
+                                               target4_range_seg, target5_range_seg]
+        arch1.divide_arch_individual_target_modified_angle_seg(D_RADIUS, D_ANGLE, D_HEIGHT,
+                                                individual_defined_range=individual_range_modified_angle_seg,
+                                                               angle_span=angle_span)
+
+    # Perform Simulation
     N = 5000
     BIAS_MEAN = 1.0
     BIAS_STDEV = 0.15
-    RAN_MEAN = 1.5
+    RAN_MEAN = 0.97
     RAN_STDEV = 0.30
     #N_REGION = 10
     THRESHOLD_0 = 0.7
@@ -250,9 +301,7 @@ if __name__ == "__main__":
 
     BIAS_ERROR_FLAG = 0
     ORIENTATION = 1
-
     print('registration')
-
     # solve TRE
     for i in range(len(arch1.all_regions_cartesion)):
         value_95 = []
@@ -264,7 +313,6 @@ if __name__ == "__main__":
         for point in arch1.all_regions_cartesion[i]:
             print('checking point ', mm + 1)
             fiducials_new[i,:] = point
-            #print('fiducials are ', fiducials_new)
             value_95_tem, value_95_x_tem, value_95_y_tem, value_95_z_tem = check_tre(targets_original, fiducials_new)
             value_95.append(value_95_tem)
             value_95_x.append(value_95_x_tem)
@@ -280,7 +328,6 @@ if __name__ == "__main__":
                 else:
                     red_point.append(point)
                     print('red shape', np.shape(red_point))
-
             else:
                 if (all(x < THRESHOLD_0 for x in value_95_tem)):
                     green_point.append(point)
@@ -305,22 +352,17 @@ if __name__ == "__main__":
         max_x.append(np.max(value_95_x, axis=0))
         max_y.append(np.max(value_95_y, axis=0))
         max_z.append(np.max(value_95_z, axis=0))
-    #exit()
-    #value_95, model = check_tre(targets_original, fiducials_original)
 
-    #green_file = "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_green.txt"
-    #yellow_file = "Results\\" + np.str(N_REGION) + "_region_" + np.str(MEAN) + "_tolerance_yellow.txt"
-    #red_file = "Results\\" + np.str(N_REGION) + "_region_" + np.str(MEAN) + "_tolerance_red.txt"
-
-    #Yomiwrite.write_csv_matrix(base+green_file, green_point)
-    #Yomiwrite.write_csv_matrix(base + yellow_file, yellow_point)
-    #Yomiwrite.write_csv_matrix(base + red_file, red_point)
-
+    # Write to files
     N_REGION = arch1.n_fiducial
     all_regions = arch1.all_regions_cartesion
     for i in range(N_REGION):
-        Yomiwrite.write_csv_matrix(base+"Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_value_95_region_" + np.str(i+1) + ".txt", total_value_95[i])
-        Yomiwrite.write_csv_matrix(base + "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_points_region_" + np.str(i+1) + ".txt", all_regions[i])
+        Yomiwrite.write_csv_matrix(base+"Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN)
+                                   + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_value_95_region_"
+                                   + np.str(i+1) + ".txt", total_value_95[i])
+        Yomiwrite.write_csv_matrix(base + "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN)
+                                   + "_random_tolerance_and " + np.str(BIAS_MEAN) + "_bias_tolerance_points_region_"
+                                   + np.str(i+1) + ".txt", all_regions[i])
         Yomiwrite.write_csv_matrix(
             base + "Results\\" + np.str(N_REGION) + "_region_" + np.str(RAN_MEAN) + "_random_tolerance_and " + np.str(
                 BIAS_MEAN) + "_bias_tolerance_x_error_" + np.str(i + 1) + ".txt", total_value_95_x[i])
@@ -339,7 +381,6 @@ if __name__ == "__main__":
         Yomiplot.plot_3d_points(np.asarray(yellow_point), ax, color = 'y')
     if len(red_point) > 0:
         Yomiplot.plot_3d_points(np.asarray(red_point), ax, color = 'r')
-    # Yomiplot.plot_3d_points(all_vertex[3], ax, color = 'g')
     plt.show()
 
 
