@@ -102,94 +102,79 @@ def extract_bone_surface_box(hu_array, box, minimum_hu = 1950, maximum_hu = 2050
     idx = np.where(bone_surface == True)
     delete_idx = []
     for i in range(len(idx[0])):
-        # point is defined as [real x , real y] which is [column #, row #]
-        # since box is defined as [real x, real y] from matplot_interactive.py
         point_tem = [idx[1][i], idx[0][i]]
         flag = geometry.point_in_polygon(point_tem, box)
         #flag = define_box.quadrangle(point_tem, box)
         if flag == 0:
             delete_idx.append(i)
-    new_idx_0 = np.delete(idx[0], delete_idx)   # new row
-    new_idx_1 = np.delete(idx[1], delete_idx)   # new column
-    new_idx = [new_idx_1, new_idx_0]    # new point is defined as [new column, new row] = [real x, real y]
-
-    del bone_surface, idx, delete_idx
+    new_idx_0 = np.delete(idx[0], delete_idx)
+    new_idx_1 = np.delete(idx[1], delete_idx)
+    new_idx = [new_idx_1, new_idx_0]
     return new_idx
 
 
-def trim_slice_box(dicom_scan, slice_properties, box, z_boundary, threshold):
+def trim_slice_box(dicom_scan, box, z_boundary):
     # box corner is defined as [col_number, row_number]
     trim = []
     surface_idx = []
-    #THRESHOLD = 1850
-    #THO_DELTA = 400
-
-    #THRESHOLD = -600
-    #THO_DELTA = 200
 
     for i in range(z_boundary[0], z_boundary[1]):
         s = dicom_scan[i]
         pixel = s.pixel_array
         HU = pixel * slice_properties[-2] + slice_properties[-1]
-        slice_bone_surface_idx = extract_bone_surface_box(HU, box, threshold[0], threshold[1])
+        slice_bone_surface_idx = extract_bone_surface_box(HU, box, THRESHOLD, THRESHOLD + THO_DELTA)
         trim.append(HU)
         surface_idx.append(slice_bone_surface_idx)
-        del HU, slice_bone_surface_idx, pixel, s
+        del HU, slice_bone_surface_idx
     return trim, surface_idx
 
 
-def trim_tooth_box(scan, slice_properties, tooth_number, z_boundary, box, threshold, surface_name):
+def trim_tooth_box(scan, tooth_number, z_boundary, box):
     i = tooth_number
     z_boundary = z_boundary
     #z_boundary = BOUNDARY[i-1,4:].astype(int)
     box = box
     #box = BOX[i-17]
-    HU_trim, bone_surface_idx = trim_slice_box(scan, slice_properties, box, z_boundary, threshold)
-    dicom_point_cloud = open3d_plot(bone_surface_idx, slice_properties, z_boundary)
-    dicom_pc_file = 'C:\\tooth segmentation raw\\tooth_' + np.str(i+1) + '_surface_' + surface_name + '.csv'
+    HU_trim, bone_surface_idx = trim_slice_box(scan, box, z_boundary)
+    dicom_point_cloud = open3d_plot(bone_surface_idx)
+    dicom_pc_file = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\DICOM_pc\\corrected\\corrected_dicom_points_tooth' + np.str(49-i) + '.csv'
     Yomiwrite.write_csv_matrix(dicom_pc_file, dicom_point_cloud)
-    del HU_trim, bone_surface_idx, dicom_point_cloud
+    del HU_trim
 
 
-def open3d_plot(surface_idx, slice_properties, z_boundary):
+def open3d_plot(surface_idx):
     points = np.zeros(3)
-    #n = 0
+    n = 0
     for i in range(len(surface_idx)):
         if surface_idx[i][0].size > 0:
             #print('surface_idx is', surface_idx[i])
-            #x_data = (slice_properties[4]- surface_idx[i][1]) * slice_properties[1][0]
-            x_data = surface_idx[i][0] * slice_properties[1][1]  # Yomiplan x
+            x_data = (slice_properties[4]- surface_idx[i][1]) * slice_properties[1][0]
             # flip y
-            #y_data = (surface_idx[i][0]) * slice_properties[1][0]
-            y_data = (slice_properties[4] - surface_idx[i][1]) * slice_properties[1][0]  # Yomiplan y
-
+            y_data = (surface_idx[i][0]) * slice_properties[1][0]
             z = i * np.ones(surface_idx[i][1].shape)
             # flip z to re-position head in 3d plot. (CT scans from top to bottom. 3D plotting goes from bot to top)
-            #z_data = (slice_properties[2] - z) * slice_properties[0]  # for reversed
-            z_data = (slice_properties[2] - (z_boundary[0] + z)) * slice_properties[0]
+            z_data = (slice_properties[2] - z) * slice_properties[0]  # for reversed
             #z_data = z * slice_properties[0]
-
-            #if n == 0:
-            #    print('x_data is', x_data)
-            #    print('y_data is', y_data)
-            #    print('z_data is', z_data)
-            #    print('x idx is', surface_idx[i][1])
-            #    print('y idx is', surface_idx[i][0])
-            #    print('z idx is', z)
-            #    n = 1
+            if n == 0:
+                print('x_data is', x_data)
+                print('y_data is', y_data)
+                print('z_data is', z_data)
+                print('x idx is', surface_idx[i][1])
+                print('y idx is', surface_idx[i][0])
+                print('z idx is', z)
+                n = 1
 
             #z_data = (z) * slice_properties[0]
             for m in range(x_data.shape[0]):
                 pcd_tem = np.array([x_data[m], y_data[m], z_data[m]])
                 points = np.vstack((points, pcd_tem))
                 del pcd_tem
-        del x_data, y_data, z_data
     points = points[1:,:]
-    #print('points [0] are', points[0,:])
+    print('points [0] are', points[0,:])
 
-    #pcd = open3d.PointCloud()
-    #pcd.points = open3d.Vector3dVector(points)
-    #visualization.draw_geometries([pcd])
+    pcd = open3d.PointCloud()
+    pcd.points = open3d.Vector3dVector(points)
+    visualization.draw_geometries([pcd])
     return points
 
 
@@ -367,5 +352,5 @@ def select_dicom_surface_points(intensity_lower_bound, intensity_upper_bound, li
 
 # for i in tooth_number:
 #     print('i is', i)
-     #trim_tooth_box(scan,i)
+     trim_tooth_box(scan,i)
 # exit()

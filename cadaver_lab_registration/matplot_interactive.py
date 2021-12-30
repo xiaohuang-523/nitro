@@ -14,6 +14,13 @@ from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationTool
 from matplotlib.figure import Figure
 import gui
 
+import tooth_segmentation_CT as sct
+
+import Readers as Yomiread
+
+# clear memory
+import gc
+
 # draw a circle in figure.
 def draw_circle(point1, point2):
     center = point1
@@ -74,8 +81,10 @@ class CTImg():
 
         # Box method
         self.corner_list = []
+        self.threshold_list = []
         for i in range(32):
             self.corner_list.append([])
+            self.threshold_list.append([])
         self.corner_points = []
         self.box_selection_figure = None
         self.corner_list_o = []
@@ -83,12 +92,22 @@ class CTImg():
         self.corner_list_b = []
         self.corner_list_f = []
         self.corner_list_bk = []
+        self.z_list_o = []
+        self.z_list_l = []
+        self.z_list_b = []
+        self.z_list_f = []
+        self.z_list_bk = []
         for i in range(32):
             self.corner_list_o.append([])
             self.corner_list_l.append([])
             self.corner_list_b.append([])
             self.corner_list_f.append([])
             self.corner_list_bk.append([])
+            self.z_list_o.append([])
+            self.z_list_l.append([])
+            self.z_list_b.append([])
+            self.z_list_f.append([])
+            self.z_list_bk.append([])
         self.corner_list_o_label = np.zeros(32)
         self.corner_list_l_label = np.zeros(32)
         self.corner_list_b_label = np.zeros(32)
@@ -98,6 +117,7 @@ class CTImg():
                                   self.corner_list_bk]
         self.total_corner_list_label = [self.corner_list_o_label, self.corner_list_l_label, self.corner_list_b_label,
                                         self.corner_list_f_label, self.corner_list_bk_label]
+        self.total_z_list = [self.z_list_o, self.z_list_l, self.z_list_b, self.z_list_f, self.z_list_bk]
 
         # GUI method
         self.check_list_entry_o = []
@@ -113,8 +133,12 @@ class CTImg():
         self.e2 = None
         self.e3 = None
         self.e4 = None
+        self.e5 = None
+        self.e6 = None
         self.step2_info = None
+        self.step2_entry = None
         self.step3_info = None
+        self.step7_info = None
 
         self.generate_gui()
 
@@ -160,10 +184,27 @@ class CTImg():
         lbl3_info.grid(row=1, rowspan=2, column=3, columnspan=5, sticky="nsew", padx=5, pady=5)
 
         self.step2_info = tk.Label(master=self.tk_master, text="")
-        self.step2_info.grid(row=5, column=2, columnspan = 5, sticky="nsew", padx=5, pady=5)
+        self.step2_info.grid(row=5, column=3, columnspan = 5, sticky="nsew", padx=5, pady=5)
+
+        self.step2_entry = tk.Entry(master=self.tk_master)
+        self.step2_entry.grid(row=5, column=2, sticky="nsew", padx=5, pady=5)
 
         self.step3_info = tk.Label(master=self.tk_master, text="")
         self.step3_info.grid(row=6, rowspan=2, column=2, columnspan = 5, sticky="nsew", padx=5, pady=5)
+
+
+        lbl5 = tk.Label(master = self.tk_master, text = "threshold_min")
+        lbl5.grid(row=21, column=1, sticky="nsew", padx=5, pady=5)
+        self.e5 = tk.Entry(self.tk_master)
+        self.e5.grid(row=21, column=2, sticky="nsew", padx=5, pady=5)
+        self.e5.insert(0, 'Enter Value')
+
+
+        lbl6 = tk.Label(master = self.tk_master, text = "threshold max")
+        lbl6.grid(row=22, column=1, sticky="nsew", padx=5, pady=5)
+        self.e6 = tk.Entry(self.tk_master)
+        self.e6.grid(row=22, column=2, sticky="nsew", padx=5, pady=5)
+        self.e6.insert(0, 'Enter Value')
 
         # define plot function
         button = tk.Button(master=self.tk_master, command=self.plot_ct_slices, text="Step 1 \n plot CT slice overview")
@@ -179,10 +220,19 @@ class CTImg():
         #button_4.grid(row=7, columnspan=2, sticky="nsew", padx=5, pady=5)
 
         button_5 = tk.Button(master=self.tk_master, command=self.check_segment, text="Step 5 \n check segmented teeth")
-        button_5.grid(row=10, columnspan=2, sticky="nsew", padx=5, pady=5)
+        button_5.grid(row=8, columnspan=2, sticky="nsew", padx=5, pady=5)
 
-        button_6 = tk.Button(master=self.tk_master, command=self.update_z_values, text="Step 6 \n perform tooth segmentation")
+        button_6 = tk.Button(master=self.tk_master, command=self.segment_current_tooth, text="Step 6 \n segment current tooth")
         button_6.grid(row=20, columnspan=2, sticky="nsew", padx=5, pady=5)
+
+        button_6b = tk.Button(master=self.tk_master, command=self.plot_current_tooth, text="Step 6b \n plot current tooth")
+        button_6b.grid(row=20, column=2, columnspan=2, sticky="nsew", padx=5, pady=5)
+
+        button_8 = tk.Button(master=self.tk_master, command=self.segment_all_teeth, text="Step 7 \n segment all teeth")
+        button_8.grid(row=23, columnspan=2, sticky="nsew", padx=5, pady=5)
+
+        self.step7_info = tk.Label(master=self.tk_master, text="")
+        self.step7_info.grid(row=23, rowspan=2, column=2, columnspan = 5, sticky="nsew", padx=5, pady=5)
 
         for j in range(5):
             tk.Label(master=self.tk_master, text= self.total_check_list_entry_name[j]).grid(row=9+j, column=2, sticky="nsew", padx=5, pady=5)
@@ -207,6 +257,45 @@ class CTImg():
 
         self.tk_master.mainloop()
 
+    # plot the current tooth
+    def plot_current_tooth(self):
+        self.tooth_number = int(self.e1.get()) - 1
+        surface_idx = self.total_check_list_entry_short_name.index(self.e2.get())
+        dicom_pc_file = 'C:\\tooth segmentation raw\\tooth_' + np.str(self.tooth_number + 1) +'_surface_'+self.total_check_list_entry_name[surface_idx] +'.csv'
+        points = Yomiread.read_csv(dicom_pc_file, 3)
+        print('points are', points)
+        fig3 = plt.figure('show current tooth')
+        ax = plt.axes(projection='3d')
+        Yomiplot.plot_3d_points(points, ax, axe_option=False)
+        plt.show()
+
+    # segment all teeth
+    def segment_all_teeth(self):
+        for j in range(len(self.total_check_list_entry_short_name)):
+            for i in range(len(self.total_corner_list[j])):
+                if self.total_corner_list_label[j][i] == 1:
+                    sct.trim_tooth_box(self.scan, self.slice_properties, i, self.total_z_list[j][i],
+                                       self.total_corner_list[j][i], self.threshold_list[i], self.total_check_list_entry_name[j])
+
+                    self.step7_info.config(text = 'Tooth '+np.str(i + 1) + ' '
+                                      + self.total_check_list_entry_name[j]
+                                      + ' surface is segmented'
+                                           )
+
+
+    # segment the current tooth
+    def segment_current_tooth(self):
+        gc.collect()
+        #self.tooth_number = int(self.e1.get()) - 1
+        #self.tooth_surface = self.e2.get()
+        #self.z_min = int(self.e3.get())
+        #self.z_max = int(self.e4.get())
+        threshold_min = int(self.e5.get())
+        threshold_max = int(self.e6.get())
+        surface_idx = self.total_check_list_entry_short_name.index(self.tooth_surface)
+        sct.trim_tooth_box(self.scan, self.slice_properties, self.tooth_number, [self.z_min, self.z_max], self.total_corner_list[surface_idx][self.tooth_number], [threshold_min, threshold_max], self.total_check_list_entry_name[surface_idx])
+
+
     # check how many teeth are segmented
     def check_segment(self):
         for j in range(5):
@@ -226,7 +315,7 @@ class CTImg():
             self.fig2.clear()
             plt.close(self.fig2)
         self.fig2 = plt.figure('tooth segmentation figure')
-        self.read_ct(self.z_min)
+        self.read_ct(int(self.step2_entry.get()))
         self.select_box(self.fig2)
 
 
@@ -238,12 +327,15 @@ class CTImg():
             surface_idx = self.total_check_list_entry_short_name.index(self.tooth_surface)
         self.total_corner_list[surface_idx][self.tooth_number] = self.corner_points.copy()
         self.total_corner_list_label[surface_idx][self.tooth_number] = 1
+        self.total_z_list[surface_idx][self.tooth_number] = [self.z_min, self.z_max]
+        self.threshold_list[self.tooth_number] = [int(self.e5.get()), int(self.e6.get())]
         self.step3_info.config(text = 'Tooth '+np.str(self.tooth_number + 1) + ' '
                                       + self.total_check_list_entry_name[surface_idx]
                                       + ' surface is segmented in \n box '
                                       + np.str(self.total_corner_list[surface_idx][self.tooth_number])
                                       + ' \nbetween slice '+ np.str(self.z_min) + ' and slice ' + np.str(self.z_max)
                                )
+
 
     def update(self, val):
         self.ax.clear()
@@ -428,6 +520,8 @@ if __name__ == '__main__':
     #SEEDS = []
     path_point_surface_matching = "G:\\My Drive\\Project\\HW-9232 Registration method for edentulous\\" \
                                   "CT tooth segmentation\\CASE 5277\\CT3\\"
+
+    #path_point_surface_matching = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\RD-08-L\\'
     #path_point_surface_matching = "G:\\My Drive\\Project\\HW-9232 Registration method for edentulous\\HW-9898 Point-to-surface experiments\\CT scan\\drill_fxt_0.2\\"
     # path = 'G:\\My Drive\\Project\\IntraOral Scanner Registration\\FA-human scan\\'
 
