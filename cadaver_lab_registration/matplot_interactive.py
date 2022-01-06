@@ -21,6 +21,21 @@ import Readers as Yomiread
 # clear memory
 import gc
 
+import os
+
+
+# write csv file with data (matrix)
+def write_csv_matrix(file_name, data, fmt = '%.4f', delim = ","):
+    f = open(file_name, 'w')
+    data = np.asarray(data)
+    if len(np.shape(data)) > 1:
+        for data_tem in np.asarray(data):
+            np.savetxt(f, data_tem.reshape(1, data_tem.shape[0]), delimiter=delim, fmt = fmt)
+    else:
+        np.savetxt(f, data.reshape(1, len(data)), delimiter=delim, fmt = fmt)
+        #f.write("\n")
+    f.close()
+
 # draw a circle in figure.
 def draw_circle(point1, point2):
     center = point1
@@ -127,7 +142,7 @@ class CTImg():
         self.check_list_entry_bk = []
         self.total_check_list_entry = [self.check_list_entry_o, self.check_list_entry_l, self.check_list_entry_b, self.check_list_entry_f, self.check_list_entry_bk]
         self.total_check_list_entry_name = ['occlusal', 'lingual', 'buccal', 'front', 'back']
-        self.total_check_list_entry_short_name = ['o', 'l', 'b', 'f', 'bk']
+        self.total_check_list_entry_short_name = ['o', 'l', 'b', 'f', 'k']
         self.tk_master = None
         self.e1 = None
         self.e2 = None
@@ -146,7 +161,7 @@ class CTImg():
         self.tk_master = tk.Tk()
 
         # set 4 rows and 2 columns
-        for i in range(21):
+        for i in range(13):
             self.tk_master.rowconfigure(i, minsize=50, weight=1)
             for j in range(3):
                 self.tk_master.columnconfigure(j, minsize=1, weight=4)
@@ -155,107 +170,134 @@ class CTImg():
 
         # define entry and label for reading
         lbl1 = tk.Label(master = self.tk_master, text = "tooth number")
-        lbl1.grid(row=3, column=1, sticky="nsew", padx=5, pady=5)
+        lbl1.grid(row=4, column=1, sticky="nsew", padx=5, pady=5)
         self.e1 = tk.Entry(self.tk_master)
-        self.e1.grid(row=3, column=2, sticky="nsew", padx=5, pady=5)
+        self.e1.grid(row=4, column=2, sticky="nsew", padx=5, pady=5)
         self.e1.insert(0, 'Enter Value')
-        lbl1_info = tk.Label(master=self.tk_master, text="Upper right-left is 1-16\n Lower right-left is 32-17")
-        lbl1_info.grid(row=3, column=3, columnspan=5, sticky="nsew", padx=5, pady=5)
+        lbl1_info = tk.Label(master=self.tk_master, text="Upper right-left is 1-16, Lower right-left is 32-17")
+        lbl1_info.grid(row=3, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
 
         lbl2 = tk.Label(master = self.tk_master, text = "tooth surface")
-        lbl2.grid(row=4, column=1, sticky="nsew", padx=5, pady=5)
+        lbl2.grid(row=6, column=1, sticky="nsew", padx=5, pady=5)
         self.e2 = tk.Entry(self.tk_master)
-        self.e2.grid(row=4, column=2, sticky="nsew", padx=5, pady=5)
+        self.e2.grid(row=6, column=2, sticky="nsew", padx=5, pady=5)
         self.e2.insert(0, 'Enter Value')
-        lbl2_info = tk.Label(master=self.tk_master, text="Occlusal 'o', Lingual 'l', Buccal 'b'\n 'Front 'f', Back 'bk'")
-        lbl2_info.grid(row=4, column=3, columnspan=5, sticky="nsew", padx=5, pady=5)
+        lbl2_info = tk.Label(master=self.tk_master, text="Occlusal 'o', Lingual 'l', Buccal 'b', 'Front 'f', Back 'k'")
+        lbl2_info.grid(row=5, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
 
         lbl3 = tk.Label(master = self.tk_master, text = "Minimum Z value")
-        lbl3.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        lbl3.grid(row=2, column=1, sticky="nsew", padx=5, pady=5)
         self.e3 = tk.Entry(self.tk_master)
-        self.e3.grid(row=1, column=2, sticky="nsew", padx=5, pady=5)
+        self.e3.grid(row=2, column=2, sticky="nsew", padx=5, pady=5)
         self.e3.insert(0, 'Enter Value')
         lbl4 = tk.Label(master = self.tk_master, text = "Maximum Z value")
-        lbl4.grid(row=2, column=1, sticky="nsew", padx=5, pady=5)
+        lbl4.grid(row=2, column=3, sticky="nsew", padx=5, pady=5)
         self.e4 = tk.Entry(self.tk_master)
-        self.e4.grid(row=2, column=2, sticky="nsew", padx=5, pady=5)
+        self.e4.grid(row=2, column=4, sticky="nsew", padx=5, pady=5)
         self.e4.insert(0, 'Enter Value')
         lbl3_info = tk.Label(master=self.tk_master, text="Define the height range to seach for tooth surface")
-        lbl3_info.grid(row=1, rowspan=2, column=3, columnspan=5, sticky="nsew", padx=5, pady=5)
+        lbl3_info.grid(row=1, column=0, columnspan=5, sticky="nsew", padx=5, pady=5)
 
         self.step2_info = tk.Label(master=self.tk_master, text="")
-        self.step2_info.grid(row=5, column=3, columnspan = 5, sticky="nsew", padx=5, pady=5)
+        self.step2_info.grid(row=8, column=3, columnspan = 5, sticky="nsew", padx=5, pady=5)
 
         self.step2_entry = tk.Entry(master=self.tk_master)
-        self.step2_entry.grid(row=5, column=2, sticky="nsew", padx=5, pady=5)
+        self.step2_entry.grid(row=8, column=2, sticky="nsew", padx=5, pady=5)
 
         self.step3_info = tk.Label(master=self.tk_master, text="")
-        self.step3_info.grid(row=6, rowspan=2, column=2, columnspan = 5, sticky="nsew", padx=5, pady=5)
+        self.step3_info.grid(row=9, rowspan=2, column=2, columnspan = 5, sticky="nsew", padx=5, pady=5)
 
 
         lbl5 = tk.Label(master = self.tk_master, text = "threshold_min")
-        lbl5.grid(row=21, column=1, sticky="nsew", padx=5, pady=5)
+        lbl5.grid(row=7, column=1, sticky="nsew", padx=5, pady=5)
         self.e5 = tk.Entry(self.tk_master)
-        self.e5.grid(row=21, column=2, sticky="nsew", padx=5, pady=5)
+        self.e5.grid(row=7, column=2, sticky="nsew", padx=5, pady=5)
         self.e5.insert(0, 'Enter Value')
 
 
         lbl6 = tk.Label(master = self.tk_master, text = "threshold max")
-        lbl6.grid(row=22, column=1, sticky="nsew", padx=5, pady=5)
+        lbl6.grid(row=7, column=3, sticky="nsew", padx=5, pady=5)
         self.e6 = tk.Entry(self.tk_master)
-        self.e6.grid(row=22, column=2, sticky="nsew", padx=5, pady=5)
+        self.e6.grid(row=7, column=4, sticky="nsew", padx=5, pady=5)
         self.e6.insert(0, 'Enter Value')
+
+        lbl_check_segment = tk.Label(master=self.tk_master, text="             ")
+        lbl_check_segment.grid(row=6, column=7, rowspan=12, columnspan=3, sticky="nsew", padx=5, pady=5)
 
         # define plot function
         button = tk.Button(master=self.tk_master, command=self.plot_ct_slices, text="Step 1 \n plot CT slice overview")
         button.grid(row=0, columnspan=2, sticky="nsew", padx=5, pady=5)
 
         button_2 = tk.Button(master=self.tk_master, command=self.update_z_values, text="Step 2 \n update Z values")
-        button_2.grid(row=5, columnspan=2, sticky="nsew", padx=5, pady=5)
+        button_2.grid(row=8, columnspan=2, sticky="nsew", padx=5, pady=5)
 
         button_3 = tk.Button(master=self.tk_master, command=self.update_box_values, text="Step 3 \n select box for segmentation")
-        button_3.grid(row=6, columnspan=2, sticky="nsew", padx=5, pady=5)
+        button_3.grid(row=9, columnspan=2, sticky="nsew", padx=5, pady=5)
 
         #button_4 = tk.Button(master=self.tk_master, command=self.update_box_list(), text="Step 4 \n update box points")
         #button_4.grid(row=7, columnspan=2, sticky="nsew", padx=5, pady=5)
 
-        button_5 = tk.Button(master=self.tk_master, command=self.check_segment, text="Step 5 \n check segmented teeth")
-        button_5.grid(row=8, columnspan=2, sticky="nsew", padx=5, pady=5)
+        button_5 = tk.Button(master=self.tk_master, command=self.check_segment, text="Step 4 \n check segmented teeth")
+        button_5.grid(row=10, columnspan=2, sticky="nsew", padx=5, pady=5)
 
-        button_6 = tk.Button(master=self.tk_master, command=self.segment_current_tooth, text="Step 6 \n segment current tooth")
-        button_6.grid(row=20, columnspan=2, sticky="nsew", padx=5, pady=5)
+        button_6 = tk.Button(master=self.tk_master, command=self.export_segmentation_boxes, text="Step 5 \n export segmentation boxes")
+        button_6.grid(row=11, columnspan=2, sticky="nsew", padx=5, pady=5)
 
-        button_6b = tk.Button(master=self.tk_master, command=self.plot_current_tooth, text="Step 6b \n plot current tooth")
-        button_6b.grid(row=20, column=2, columnspan=2, sticky="nsew", padx=5, pady=5)
+        #button_6 = tk.Button(master=self.tk_master, command=self.segment_current_tooth, text="Step 5 \n export segmentation boxes")
+        #button_6.grid(row=11, columnspan=2, sticky="nsew", padx=5, pady=5)
 
-        button_8 = tk.Button(master=self.tk_master, command=self.segment_all_teeth, text="Step 7 \n segment all teeth")
-        button_8.grid(row=23, columnspan=2, sticky="nsew", padx=5, pady=5)
+       # button_6b = tk.Button(master=self.tk_master, command=self.plot_current_tooth, text="Step 6b \n plot current tooth")
+       # button_6b.grid(row=11, column=2, columnspan=2, sticky="nsew", padx=5, pady=5)
 
-        self.step7_info = tk.Label(master=self.tk_master, text="")
-        self.step7_info.grid(row=23, rowspan=2, column=2, columnspan = 5, sticky="nsew", padx=5, pady=5)
+       # button_8 = tk.Button(master=self.tk_master, command=self.segment_all_teeth, text="Step 7 \n segment all teeth")
+       # button_8.grid(row=12, columnspan=2, sticky="nsew", padx=5, pady=5)
+
+       # self.step7_info = tk.Label(master=self.tk_master, text="")
+       # self.step7_info.grid(row=12, rowspan=2, column=2, columnspan = 5, sticky="nsew", padx=5, pady=5)
 
         for j in range(5):
-            tk.Label(master=self.tk_master, text= self.total_check_list_entry_name[j]).grid(row=9+j, column=2, sticky="nsew", padx=5, pady=5)
-            tk.Label(master=self.tk_master, text=self.total_check_list_entry_name[j]).grid(row=15 + j, column=2,
+            tk.Label(master=self.tk_master, text= self.total_check_list_entry_name[j]).grid(row=1+j, column=7+3, sticky="nsew", padx=5, pady=5)
+            tk.Label(master=self.tk_master, text=self.total_check_list_entry_name[j]).grid(row=7 + j, column=7+3,
                                                                                            sticky="nsew", padx=5,
                                                                                            pady=5)
             for i in range(16):
-                entry_upper = tk.Entry(self.tk_master, width=5)
+                entry_upper = tk.Entry(self.tk_master, width=4)
                 self.total_check_list_entry[j].append(entry_upper)
-                self.total_check_list_entry[j][i].grid(row=9+j, column = i + 3, sticky="nsew", padx=5, pady=5)
+                self.total_check_list_entry[j][i].grid(row=1+j, column = i + 8 +3, sticky="nsew", padx=5, pady=5)
             for i in range(16, 32, 1):
-                entry_lower = tk.Entry(self.tk_master, width=5)
+                entry_lower = tk.Entry(self.tk_master, width=4)
                 self.total_check_list_entry[j].append(entry_lower)
-                self.total_check_list_entry[j][i].grid(row=15+j, column= 32 - i + 2, sticky="nsew", padx=5, pady=5)
+                self.total_check_list_entry[j][i].grid(row=7+j, column= 32 - i + 7 +3, sticky="nsew", padx=5, pady=5)
 
         for i in range(16):
-            tk.Label(master=self.tk_master, text=np.str(i + 1), width=5).grid(row=8, column=i + 3, sticky="nsew",
+            tk.Label(master=self.tk_master, text=np.str(i + 1), width=4).grid(row=0, column=i + 8 +3, sticky="nsew",
                                                                               padx=5, pady=5)
         for i in range(16,32,1):
-            tk.Label(master=self.tk_master, text=np.str(i + 1), width=5).grid(row=14, column=32 - i + 2, sticky="nsew",
+            tk.Label(master=self.tk_master, text=np.str(i + 1), width=4).grid(row=6, column=32 - i + 7+3, sticky="nsew",
                                                                               padx=5, pady=5)
 
         self.tk_master.mainloop()
+
+    # export segmentation boxes
+    def export_segmentation_boxes(self):
+        self.total_check_list_entry = [self.check_list_entry_o, self.check_list_entry_l, self.check_list_entry_b, self.check_list_entry_f, self.check_list_entry_bk]
+        self.total_check_list_entry_name = ['occlusal', 'lingual', 'buccal', 'front', 'back']
+        output_base_path = "C:\\tools probing cadaver lab\\CT raw\\segmentation_box\\"
+        if not os.path.exists(output_base_path):
+            os.mkdir(output_base_path)
+
+        for j in range(5):
+            for i in range(32):
+                if self.total_corner_list_label[j][i] == 1:
+
+                    file_name_box = output_base_path + "tooth_" + np.str(i+1) +'_surface_'+self.total_check_list_entry_name[j]+'_boxes.csv'
+                    write_csv_matrix(file_name_box, self.total_corner_list[j][i], fmt="%d")
+                    file_name_depth = output_base_path + "tooth_" + np.str(i+1) +'_surface_'+self.total_check_list_entry_name[j]+'_depth.csv'
+                    write_csv_matrix(file_name_depth, self.total_z_list[j][i], fmt="%d")
+                    #self.total_check_list_entry[j][i].insert(0, 1)
+                    #self.total_check_list_entry[j][i].config({"background": "Green"})
+                #else:
+                    #self.total_check_list_entry[j][i].config({"background": "Red"})
 
     # plot the current tooth
     def plot_current_tooth(self):

@@ -153,7 +153,7 @@ def trim_tooth_box(scan, slice_properties, tooth_number, z_boundary, box, thresh
 
 def open3d_plot(surface_idx, slice_properties, z_boundary):
     points = np.zeros(3)
-    #n = 0
+    n = 0
     for i in range(len(surface_idx)):
         if surface_idx[i][0].size > 0:
             #print('surface_idx is', surface_idx[i])
@@ -169,21 +169,21 @@ def open3d_plot(surface_idx, slice_properties, z_boundary):
             z_data = (slice_properties[2] - (z_boundary[0] + z)) * slice_properties[0]
             #z_data = z * slice_properties[0]
 
-            #if n == 0:
-            #    print('x_data is', x_data)
-            #    print('y_data is', y_data)
-            #    print('z_data is', z_data)
-            #    print('x idx is', surface_idx[i][1])
-            #    print('y idx is', surface_idx[i][0])
-            #    print('z idx is', z)
-            #    n = 1
+            if n == 0:
+                print('x_data is', x_data)
+                print('y_data is', y_data)
+                print('z_data is', z_data)
+                print('x idx is', surface_idx[i][1])
+                print('y idx is', surface_idx[i][0])
+                print('z idx is', z)
+                n = 1
 
             #z_data = (z) * slice_properties[0]
             for m in range(x_data.shape[0]):
                 pcd_tem = np.array([x_data[m], y_data[m], z_data[m]])
                 points = np.vstack((points, pcd_tem))
                 del pcd_tem
-        del x_data, y_data, z_data
+        #del x_data, y_data, z_data
     points = points[1:,:]
     #print('points [0] are', points[0,:])
 
